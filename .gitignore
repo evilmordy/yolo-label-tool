@@ -2,12 +2,14 @@ __pycache__/
 *py[cod]
 *.so
 
-venv/
+.venv/
 .env/
 
 build/
 dist/
 *.spec.bak
-
+ 
 .DS_Store
 Thumbs.db
+
+main.spec
