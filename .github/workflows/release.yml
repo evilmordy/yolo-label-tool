@@ -1,4 +1,4 @@
-name: Build & Release
+name: Build & Release YOLOTxtMaker
 
 on:
   push:
@@ -30,9 +30,9 @@ jobs:
     - name: Build executable
       run: |
         if [ ${{ runner.os }} == 'Windows' ]; then
-          pyinstaller -F -w main.py --add-data "resources/style.qss:resources" -n YOLOTxtMaker.exe
+          pyinstaller -F -w main.py -n YOLOTxtMaker.exe
         else
-          pyinstaller -F -w main.py --add-data "resources/style.qss:resources" -n YOLOTxtMaker
+          pyinstaller -F -w main.py -n YOLOTxt-linux
         fi
 
     - name: Create GitHub Release
@@ -52,8 +52,8 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: |
           dist/YOLOTxtMaker.exe
-          dist/YOLOTxtMaker
+          dist/YOLOTxt-linux
         asset_name: |
-          YOLOTxtMaker-windows.exe
-          YOLOTxtMaker-linux
-        asset_content_type: application/octet-streamg
+          YOLOTxtMaker.exe
+          YOLOTxt-linux
+        asset_content_type: application/octet-stream
