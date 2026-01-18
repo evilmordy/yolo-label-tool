@@ -61,14 +61,6 @@
 | height | 浮点 | 0-1 | 框高度相对值 |
 
 
-## 使用流程
-
-1. **启动应用**
-   ```bash
-   cd /path/to/YOLOTxtMaker
-   source .venv/bin/activate
-   python main.py
-   ```
 
 2. **设置保存路径**
    - 点击右侧面板的"设置保存路径"按钮
@@ -105,7 +97,7 @@ YOLOTxtMaker/
 ├── utils/
 │   └── image_loader.py    # 图像加载
 └── resources/
-    └── style.qss          # 蔚蓝风格样式
+    └── style.qss          # 样式
 ```
 
 ## 技术栈
