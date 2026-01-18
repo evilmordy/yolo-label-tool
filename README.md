@@ -9,7 +9,7 @@
 git clone项目到本地，然后安装这两个库：pyqt5,pillow.
 直接运行main.py即可。
 ### Linux
-在release中下载压缩包，解压后直接运行main即可。
+在release中下载YOLOTxtMaker-linux，运行它。
 这里默认大家都会chmod +x 来使得可执行文件具有执行权限。不会的话，你应该了解linux的基础知识。
 ## 功能特性
 
