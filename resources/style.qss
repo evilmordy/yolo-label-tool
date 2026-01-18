@@ -1,0 +1,364 @@
+/* 蔚蓝风格主题 - Azure Style */
+
+/* ===== 主应用窗口 ===== */
+QMainWindow {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+}
+
+QWidget {
+    background-color: #16213e;
+    color: #e0e0e0;
+}
+
+/* ===== 菜单栏 ===== */
+QMenuBar {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border-bottom: 1px solid #16a085;
+    padding: 2px;
+}
+
+QMenuBar::item:selected {
+    background-color: #16a085;
+    color: #ffffff;
+}
+
+QMenuBar::item:pressed {
+    background-color: #0d6f5c;
+    color: #ffffff;
+}
+
+/* ===== 菜单 ===== */
+QMenu {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #16a085;
+}
+
+QMenu::item:selected {
+    background-color: #16a085;
+    color: #ffffff;
+}
+
+/* ===== 按钮 ===== */
+QPushButton {
+    background-color: #16a085;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: bold;
+    font-size: 11pt;
+}
+
+QPushButton:hover {
+    background-color: #1a9c8a;
+    border: 1px solid #16a085;
+}
+
+QPushButton:pressed {
+    background-color: #0d6f5c;
+    border: 1px solid #16a085;
+}
+
+QPushButton:disabled {
+    background-color: #666666;
+    color: #999999;
+}
+
+/* 绿色保存按钮 */
+QPushButton[text*="保存"] {
+    background-color: #2ecc71;
+}
+
+QPushButton[text*="保存"]:hover {
+    background-color: #27ae60;
+}
+
+QPushButton[text*="保存"]:pressed {
+    background-color: #1e8449;
+}
+
+/* ===== 列表框 ===== */
+QListWidget {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #16a085;
+    border-radius: 4px;
+}
+
+QListWidget::item {
+    padding: 4px;
+    margin: 2px;
+}
+
+QListWidget::item:selected {
+    background-color: #16a085;
+    color: #ffffff;
+}
+
+QListWidget::item:hover {
+    background-color: #1a4d6d;
+}
+
+/* ===== 标签 ===== */
+QLabel {
+    color: #e0e0e0;
+}
+
+/* ===== 数值输入框 ===== */
+QSpinBox {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #16a085;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+QSpinBox:focus {
+    border: 2px solid #16a085;
+    background-color: #1a4d6d;
+}
+
+QSpinBox::up-button,
+QSpinBox::down-button {
+    background-color: #16a085;
+    border: none;
+}
+
+QSpinBox::up-button:hover,
+QSpinBox::down-button:hover {
+    background-color: #1a9c8a;
+}
+
+QSpinBox::up-arrow,
+QSpinBox::down-arrow {
+    color: #ffffff;
+}
+
+/* ===== 停靠窗口 ===== */
+QDockWidget {
+    color: #e0e0e0;
+    titlebar-close-icon: url("close.png");
+}
+
+QDockWidget::title {
+    background-color: #0f3460;
+    padding: 6px;
+    border: 1px solid #16a085;
+    color: #e0e0e0;
+    font-weight: bold;
+}
+
+QDockWidget::close-button:hover {
+    background-color: #e74c3c;
+}
+
+/* ===== 消息对话框 ===== */
+QMessageBox {
+    background-color: #16213e;
+}
+
+QMessageBox QLabel {
+    color: #e0e0e0;
+}
+
+/* ===== 文件对话框 ===== */
+QFileDialog {
+    background-color: #16213e;
+}
+
+QFileDialog QLabel {
+    color: #e0e0e0;
+}
+
+/* ===== 树视图和表视图 ===== */
+QTreeView,
+QTableView {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #16a085;
+    gridline-color: #16a085;
+}
+
+QTreeView::item:selected,
+QTableView::item:selected {
+    background-color: #16a085;
+    color: #ffffff;
+}
+
+QTreeView::item:hover,
+QTableView::item:hover {
+    background-color: #1a4d6d;
+}
+
+/* ===== 滚动条 ===== */
+QScrollBar:vertical {
+    border: 1px solid #16a085;
+    background-color: #0f3460;
+    width: 12px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #16a085;
+    border: 1px solid #16a085;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #1a9c8a;
+}
+
+QScrollBar:horizontal {
+    border: 1px solid #16a085;
+    background-color: #0f3460;
+    height: 12px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #16a085;
+    border: 1px solid #16a085;
+    border-radius: 6px;
+    min-width: 20px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #1a9c8a;
+}
+
+/* ===== 文本编辑 ===== */
+QLineEdit,
+QTextEdit {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #16a085;
+    border-radius: 4px;
+    padding: 4px;
+    selection-background-color: #16a085;
+}
+
+QLineEdit:focus,
+QTextEdit:focus {
+    border: 2px solid #16a085;
+    background-color: #1a4d6d;
+}
+
+/* ===== 组合框 ===== */
+QComboBox {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #16a085;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+QComboBox::drop-down {
+    background-color: #16a085;
+    border: none;
+}
+
+QComboBox::drop-down:hover {
+    background-color: #1a9c8a;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    selection-background-color: #16a085;
+}
+
+/* ===== 进度条 ===== */
+QProgressBar {
+    background-color: #0f3460;
+    border: 1px solid #16a085;
+    border-radius: 4px;
+    text-align: center;
+    color: #e0e0e0;
+}
+
+QProgressBar::chunk {
+    background-color: #16a085;
+}
+
+/* ===== 标签页 ===== */
+QTabWidget::pane {
+    border: 1px solid #16a085;
+}
+
+QTabBar::tab {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    padding: 6px 20px;
+    border: 1px solid #16a085;
+    margin: 2px;
+}
+
+QTabBar::tab:selected {
+    background-color: #16a085;
+    color: #ffffff;
+}
+
+QTabBar::tab:hover {
+    background-color: #1a4d6d;
+}
+
+/* ===== 复选框 ===== */
+QCheckBox {
+    color: #e0e0e0;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    background-color: #0f3460;
+    border: 1px solid #16a085;
+    border-radius: 3px;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #16a085;
+    image: url("check.png");
+}
+
+QCheckBox::indicator:hover {
+    background-color: #1a4d6d;
+}
+
+/* ===== 单选按钮 ===== */
+QRadioButton {
+    color: #e0e0e0;
+}
+
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+}
+
+QRadioButton::indicator:unchecked {
+    background-color: #0f3460;
+    border: 1px solid #16a085;
+    border-radius: 8px;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #16a085;
+    border: 1px solid #16a085;
+    border-radius: 8px;
+}
+
+/* ===== 分隔线 ===== */
+QFrame[frameShape="4"],
+QFrame[frameShape="5"] {
+    color: #16a085;
+}
+
+/* 颜色方案说明：
+ * 深蓝色背景: #16213e, #0f3460
+ * 蔚蓝强调色: #16a085
+ * 文字颜色: #e0e0e0
+ * 悬停颜色: #1a4d6d
+ * 深色悬停: #0d6f5c
+ * 绿色按钮: #2ecc71
+ */
