@@ -5,11 +5,9 @@
 
 注意：打开图片前**必须先设置保存路径**，否则无法进行标注操作。
 ## 使用
-### 使用源码：
-直接git clone项目到本地，然后安装依赖：pyqt5,pillow.
+### linux以外的用户：
+git clone项目到本地，然后安装这两个库：pyqt5,pillow.
 直接运行main.py即可。
-### Windows
-在release中下载压缩包，解压后直接运行main.exe即可。
 ### Linux
 在release中下载压缩包，解压后直接运行main即可。
 这里默认大家都会chmod +x 来使得可执行文件具有执行权限。不会的话，你应该了解linux的基础知识。
