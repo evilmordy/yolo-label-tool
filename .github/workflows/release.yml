@@ -30,9 +30,9 @@ jobs:
     - name: Build executable
       run: |
         if [ ${{ runner.os }} == 'Windows' ]; then
-          pyinstaller -F -w src/main.py -n YOLOTxtMaker.exe
+          pyinstaller -F -w main.py -n YOLOTxtMaker.exe
         else
-          pyinstaller -F -w src/main.py -n YOLOTxtMaker
+          pyinstaller -F -w main.py -n YOLOTxtMaker
         fi
 
     - name: Create GitHub Release
