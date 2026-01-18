@@ -30,9 +30,9 @@ jobs:
     - name: Build executable
       run: |
         if [ ${{ runner.os }} == 'Windows' ]; then
-          pyinstaller -F -w src/main.py -n myapp.exe
+          pyinstaller -F -w src/main.py -n YOLOTxtMaker.exe
         else
-          pyinstaller -F -w src/main.py -n myapp
+          pyinstaller -F -w src/main.py -n YOLOTxtMaker
         fi
 
     - name: Create GitHub Release
@@ -51,9 +51,9 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: |
-          dist/myapp.exe
-          dist/myapp
+          dist/YOLOTxtMaker.exe
+          dist/YOLOTxtMaker
         asset_name: |
-          myapp-windows.exe
-          myapp-linux
+          YOLOTxtMaker-windows.exe
+          YOLOTxtMaker-linux
         asset_content_type: application/octet-stream
