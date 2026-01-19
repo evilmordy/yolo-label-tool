@@ -82,7 +82,7 @@ class ResizeHandle(QGraphicsEllipseItem):
         - 被拖拽的边/角才移动
         - 其他边保持固定
         - 所有坐标都限制在图像范围内
-        - 最小尺寸为20像素
+        - 最小尺寸为10像素
         """
         # 获取原始矩形的四条边
         orig_rect = self._original_rect
@@ -106,7 +106,7 @@ class ResizeHandle(QGraphicsEllipseItem):
             img_x1 = img_y1 = float('-inf')
             img_x2 = img_y2 = float('inf')
         
-        MIN_SIZE = 20
+        MIN_SIZE = 10
         
         # 根据handle位置计算新的四条边
         if self.position == "r":

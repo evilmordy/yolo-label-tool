@@ -378,6 +378,9 @@ class MainWindow(QMainWindow):
 
     def on_class_id_changed(self, value):
         """Class ID被改变时"""
+        # 保存当前选中项
+        current_row = self.bbox_list.currentRow()
+        
         item = self.bbox_list.currentItem()
         if not item:
             return
@@ -389,6 +392,10 @@ class MainWindow(QMainWindow):
         # 更新BBox的class_id
         self.label_manager.bboxes[row].class_id = value
         self.refresh_bbox_list()
+        
+        # 恢复选中状态
+        if current_row >= 0 and current_row < self.bbox_list.count():
+            self.bbox_list.setCurrentRow(current_row)
 
     def on_graphics_selected(self, bbox_item):
         """图形项被选中时"""
