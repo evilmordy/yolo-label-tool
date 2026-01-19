@@ -5,16 +5,22 @@
 
 注意：打开图片前**必须先设置保存路径**，否则无法进行标注操作。
 ## 使用
-### linux以外的用户：
+### 下载代码在本地运行
 git clone项目到本地，然后安装这两个库：pyqt5,pillow.
 直接运行main.py即可。
+### Windows
+在release中下载YOLOTxtMaker.exe，运行它。
 ### Linux
 在release中下载YOLOTxtMaker-linux，运行它。
 这里默认大家都会chmod +x 来使得可执行文件具有执行权限。不会的话，你应该了解linux的基础知识。
+
+前往 [release页面](https://github.com/evilmordy/yolo-label-tool/releases/tag/v1.0.0) 下载对应系统的可执行文件。
+
+
 ## 功能特性
 
 ### 📷 图片管理
-- ✅ 支持打开单张图片（`.jpg`, `.png`, `.jpeg`, `.bmp`）
+- ✅ 支持打开单张图片
 - ✅ 支持打开整个文件夹进行批量标注
 - ✅ "上一张"和"下一张"按钮快速浏览图片
 - ✅ 图片计数器显示当前进度（如 `3/10`）
@@ -97,12 +103,6 @@ YOLOTxtMaker/
 └── resources/
     └── style.qss          # 样式
 ```
-
-## 技术栈
-
-- **PyQt5** - GUI框架
-- **Python 3.10+** - 编程语言
-- **QGraphics** - 图形渲染
 
 ## 快捷操作
 
