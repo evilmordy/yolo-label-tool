@@ -16,6 +16,8 @@ git clone项目到本地，然后安装这两个库：pyqt5,pillow.
 
 前往 [release页面](https://github.com/evilmordy/yolo-label-tool/releases/tag/v1.0.0) 下载对应系统的可执行文件。
 
+## 注意：
+代码用的是with open 和写入模式，是覆盖式的，所以如果之前有同名文件，会被覆盖。但这也有好处，因为软件会加载保存路径里现有的标注
 
 ## 功能特性
 
