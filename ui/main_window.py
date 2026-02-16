@@ -33,10 +33,23 @@ class MainWindow(QMainWindow):
         self.save_folder_path = None  # 保存路径
         self.bbox_items = {}
 
+        self._create_left_panel()
         self._create_right_panel()
         self._create_menu()
         self.image_view.bbox_selected.connect(self.on_graphics_selected)
         self.item_selected.connect(self.on_list_selected)
+
+    def _create_left_panel(self):
+        dock = QDockWidget('图片列表', self)
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+
+        self.image_list_widget = QListWidget()
+        self.image_list_widget.currentRowChanged.connect(self.on_image_list_row_changed)
+        layout.addWidget(self.image_list_widget)
+
+        dock.setWidget(panel)
+        self.addDockWidget(0x1, dock)
 
     def _create_right_panel(self):
         dock = QDockWidget('BBoxs', self)
@@ -169,6 +182,13 @@ class MainWindow(QMainWindow):
         self.current_image_index = 0
         self._load_image(self.image_list[0])
         self._update_nav_label()
+        self._refresh_image_list()
+
+    def _refresh_image_list(self):
+        """刷新左侧图片列表"""
+        self.image_list_widget.clear()
+        for img_path in self.image_list:
+            self.image_list_widget.addItem(img_path.name)
 
     def _load_image(self, image_path: Path):
         """加载图片及其标注"""
@@ -230,8 +250,17 @@ class MainWindow(QMainWindow):
             total = len(self.image_list)
             current = self.current_image_index + 1
             self.img_counter_label.setText(f"{current}/{total}")
+            self.image_list_widget.setCurrentRow(self.current_image_index)
         else:
             self.img_counter_label.setText("0/0")
+
+    def on_image_list_row_changed(self, row):
+        """左侧图片列表行改变"""
+        if row >= 0 and row < len(self.image_list) and row != self.current_image_index:
+            self.save_txt()
+            self.current_image_index = row
+            self._load_image(self.image_list[self.current_image_index])
+            self._update_nav_label()
 
     def show_prev_image(self):
         """显示上一张图片"""
