@@ -1,14 +1,16 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QFileDialog, QListWidget, QMessageBox,
     QAction, QDockWidget, QPushButton, QWidget,
-    QVBoxLayout, QHBoxLayout, QListWidgetItem, QSpinBox, QLabel, QDialog
+    QVBoxLayout, QHBoxLayout, QListWidgetItem, QSpinBox, QLabel, QDialog, QRadioButton, QButtonGroup
 )
-from PyQt5.QtCore import QRectF, pyqtSignal, Qt, QTimer
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QRectF, pyqtSignal, Qt, QTimer, QPointF
+from PyQt5.QtGui import QFont, QKeySequence
 from pathlib import Path
+import math
 
 from ui.image_view import ImageView
 from ui.bbox_item import BBoxItem
+from ui.obb_item import OBBItem
 from core.label_manager import LabelManager
 from core.bbox import BBox
 from core.yolo_io import load_yolo_txt, save_yolo_txt
@@ -36,8 +38,22 @@ class MainWindow(QMainWindow):
         self._create_left_panel()
         self._create_right_panel()
         self._create_menu()
+        self._setup_shortcuts()
         self.image_view.bbox_selected.connect(self.on_graphics_selected)
         self.item_selected.connect(self.on_list_selected)
+
+    def _setup_shortcuts(self):
+        # 快捷键 R 切换到矩形模式
+        action_rect = QAction(self)
+        action_rect.setShortcut(QKeySequence("R"))
+        action_rect.triggered.connect(lambda: self.radio_rect.setChecked(True))
+        self.addAction(action_rect)
+
+        # 快捷键 O 切换到 OBB 模式
+        action_obb = QAction(self)
+        action_obb.setShortcut(QKeySequence("O"))
+        action_obb.triggered.connect(lambda: self.radio_obb.setChecked(True))
+        self.addAction(action_obb)
 
     def _create_left_panel(self):
         dock = QDockWidget('图片列表', self)
@@ -89,6 +105,18 @@ class MainWindow(QMainWindow):
         self.bbox_list.itemClicked.connect(self.on_list_selected)
         layout.addWidget(QLabel("BBox列表:"))
         layout.addWidget(self.bbox_list)
+
+        # 模式切换
+        mode_layout = QHBoxLayout()
+        self.mode_group = QButtonGroup(self)
+        self.radio_rect = QRadioButton("标准矩形(Rect)")
+        self.radio_obb = QRadioButton("平行四边形(OBB)")
+        self.radio_rect.setChecked(True)
+        self.mode_group.addButton(self.radio_rect, 0)
+        self.mode_group.addButton(self.radio_obb, 1)
+        mode_layout.addWidget(self.radio_rect)
+        mode_layout.addWidget(self.radio_obb)
+        layout.addLayout(mode_layout)
 
         # BBox操作按钮
         bbox_btn_layout = QHBoxLayout()
@@ -221,24 +249,42 @@ class MainWindow(QMainWindow):
             
             # 重建所有BBox图形项
             for bbox in self.label_manager.bboxes:
-                # 从YOLO归一化坐标转换回像素坐标
-                # YOLO格式: x_center, y_center, width, height (都是0-1的相对坐标)
-                pixel_x_center = bbox.x_center * img_rect.width()
-                pixel_y_center = bbox.y_center * img_rect.height()
-                pixel_w = bbox.width * img_rect.width()
-                pixel_h = bbox.height * img_rect.height()
-                
-                # 计算左上角坐标
-                x = pixel_x_center - pixel_w / 2
-                y = pixel_y_center - pixel_h / 2
-                
-                # 使用正确的Qt坐标系统：rect从(0,0)开始，位置由setPos()确定
-                rect = QRectF(0, 0, pixel_w, pixel_h)  # 本地坐标从(0,0)开始
-                item = BBoxItem(rect, bbox)
-                item.setPos(x, y)  # scene坐标中的位置
-                item.set_image_rect(img_rect)
-                self.image_view.scene.addItem(item)
-                self.bbox_items[bbox.id] = item
+                if bbox.type == 'rect':
+                    # 从YOLO归一化坐标转换回像素坐标
+                    pixel_x_center = bbox.x_center * img_rect.width()
+                    pixel_y_center = bbox.y_center * img_rect.height()
+                    pixel_w = bbox.width * img_rect.width()
+                    pixel_h = bbox.height * img_rect.height()
+                    
+                    x = pixel_x_center - pixel_w / 2
+                    y = pixel_y_center - pixel_h / 2
+                    
+                    rect = QRectF(0, 0, pixel_w, pixel_h)
+                    item = BBoxItem(rect, bbox)
+                    item.setPos(x, y)
+                    item.set_image_rect(img_rect)
+                    self.image_view.scene.addItem(item)
+                    self.bbox_items[bbox.id] = item
+                elif bbox.type == 'obb':
+                    # 恢复OBB
+                    img_w = img_rect.width()
+                    img_h = img_rect.height()
+                    px = [p[0] * img_w for p in bbox.points]
+                    py = [p[1] * img_h for p in bbox.points]
+                    
+                    cx = sum(px) / 4
+                    cy = sum(py) / 4
+                    
+                    w = math.hypot(px[1] - px[0], py[1] - py[0])
+                    h = math.hypot(px[2] - px[1], py[2] - py[1])
+                    
+                    angle_rad = math.atan2(py[1] - py[0], px[1] - px[0])
+                    angle = math.degrees(angle_rad)
+                    
+                    item = OBBItem(QPointF(cx, cy), w, h, angle, bbox)
+                    item.set_image_rect(img_rect)
+                    self.image_view.scene.addItem(item)
+                    self.bbox_items[bbox.id] = item
             
             self.refresh_bbox_list()
         except Exception as e:
@@ -339,7 +385,8 @@ class MainWindow(QMainWindow):
         self.bbox_list.clear()
         for bbox in self.label_manager.bboxes:
             # 显示 ID、ClassID、坐标信息
-            text = f"ID{bbox.id} | Class: {bbox.class_id}"
+            prefix = "[Rect]" if bbox.type == 'rect' else "[OBB]"
+            text = f"{prefix} ID{bbox.id} | Class: {bbox.class_id}"
             self.bbox_list.addItem(text)
 
 
@@ -369,16 +416,32 @@ class MainWindow(QMainWindow):
         y = (img_h - box_h) / 2  # 垂直居中
         
         bbox_id = len(self.label_manager.bboxes)
-        bbox = BBox(bbox_id, 0, 0.5, 0.5, 0.2, 0.2)
-        self.label_manager.add(bbox)
-
-        # 使用正确的Qt坐标系统：rect从(0,0)开始，位置由pos()确定
-        rect = QRectF(0, 0, box_w, box_h)  # 本地坐标从(0,0)开始
-        item = BBoxItem(rect, bbox)
-        item.setPos(x, y)  # 在scene坐标中的位置
-        item.set_image_rect(img_rect)  # 重要：设置image_rect以启用坐标同步和边界检查
-        self.image_view.scene.addItem(item)
-        self.bbox_items[bbox_id] = item
+        is_obb = self.radio_obb.isChecked()
+        
+        if is_obb:
+            # 创建OBB
+            bbox = BBox(bbox_id, 0, type='obb', points=[])
+            self.label_manager.add(bbox)
+            
+            cx = img_w / 2
+            cy = img_h / 2
+            angle = 15.0 # 默认倾斜15度方便区分
+            
+            item = OBBItem(QPointF(cx, cy), box_w, box_h, angle, bbox)
+            item.set_image_rect(img_rect)
+            self.image_view.scene.addItem(item)
+            self.bbox_items[bbox_id] = item
+        else:
+            # 创建Rect
+            bbox = BBox(bbox_id, 0, type='rect', x_center=0.5, y_center=0.5, width=0.2, height=0.2)
+            self.label_manager.add(bbox)
+            
+            rect = QRectF(0, 0, box_w, box_h)
+            item = BBoxItem(rect, bbox)
+            item.setPos(x, y)
+            item.set_image_rect(img_rect)
+            self.image_view.scene.addItem(item)
+            self.bbox_items[bbox_id] = item
 
         self.refresh_bbox_list()
 
