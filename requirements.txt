@@ -1,2 +1,4 @@
 PyQt5==5.15.9
 pyinstaller==5.13.0
+# PyInstaller 5.x 仍 import pkg_resources；setuptools>=81 不再提供该顶层模块，会导致打包报错
+setuptools>=65,<81
