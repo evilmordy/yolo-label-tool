@@ -1,21 +1,16 @@
 import sys
-from pathlib import Path
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QApplication, QStyleFactory
 from ui.main_window import MainWindow
+from ui.theme_manager import apply_theme, init_saved_theme
 
 def main():
     app = QApplication(sys.argv)
-    
-    # 加载样式
-    style_path = Path(__file__).parent / "resources" / "style.qss"
-    if style_path.exists():
-        with open(style_path, "r", encoding="utf-8") as f:
-            style_sheet = f.read()
-            app.setStyleSheet(style_sheet)
-    
+    app.setStyle(QStyleFactory.create("Fusion"))
+
+    saved_theme = init_saved_theme()
     window = MainWindow()
     window.setWindowTitle("YOLO 标注工具 - YOLOTxtMaker")
+    apply_theme(app, window, saved_theme)
     
     # 获取屏幕大小，设置合理的初始窗口大小
     screen = app.primaryScreen()

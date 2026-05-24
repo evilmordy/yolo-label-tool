@@ -1,7 +1,9 @@
 import math
 from PyQt5.QtWidgets import QGraphicsPolygonItem, QGraphicsEllipseItem, QGraphicsLineItem
 from PyQt5.QtCore import Qt, QPointF, QLineF
-from PyQt5.QtGui import QPen, QPolygonF, QBrush
+from PyQt5.QtGui import QPen, QPolygonF, QBrush, QColor
+
+from ui.theme_manager import get_annotation_colors
 
 HANDLE_SIZE = 8
 
@@ -10,23 +12,27 @@ class OBBHandle(QGraphicsEllipseItem):
         super().__init__(-HANDLE_SIZE/2, -HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE, parent)
         self.handle_type = handle_type # 'tl', 'tr', 'br', 'bl', 'rotate'
         self.parent_obb = parent
-        self.setBrush(Qt.white)
-        self.setPen(QPen(Qt.black, 1))
+        colors = get_annotation_colors()
+        self.setBrush(QColor(colors["rotate"] if handle_type == 'rotate' else colors["handle"]))
+        self.setPen(QPen(QColor(colors["handle_border"]), 1))
         self.setZValue(10)
         self.setAcceptHoverEvents(True)
         
         if handle_type == 'rotate':
-            self.setBrush(Qt.green)
+            colors = get_annotation_colors()
+            self.setBrush(QColor(colors["rotate"]))
             self.setCursor(Qt.PointingHandCursor)
         else:
             self.setCursor(Qt.CrossCursor)
 
     def hoverEnterEvent(self, event):
-        self.setBrush(Qt.yellow)
+        colors = get_annotation_colors()
+        self.setBrush(QColor(colors["handle_hover"]))
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
-        self.setBrush(Qt.green if self.handle_type == 'rotate' else Qt.white)
+        colors = get_annotation_colors()
+        self.setBrush(QColor(colors["rotate"] if self.handle_type == 'rotate' else colors["handle"]))
         super().hoverLeaveEvent(event)
 
     def mousePressEvent(self, event):
@@ -65,15 +71,26 @@ class OBBItem(QGraphicsPolygonItem):
             self.handles[ht] = OBBHandle(ht, self)
             
         self.rotate_line = QGraphicsLineItem(self)
-        self.rotate_line.setPen(QPen(Qt.green, 1, Qt.DashLine))
+        colors = get_annotation_colors()
+        self.rotate_line.setPen(QPen(QColor(colors["rotate"]), 1, Qt.DashLine))
         
         self._is_dragging = False
         self._update_geometry()
 
     def _update_color(self, selected: bool):
-        color = Qt.magenta if selected else Qt.green
+        colors = get_annotation_colors()
+        color = QColor(colors["selected"] if selected else colors["unselected"])
         self.setPen(QPen(color, 2))
         self.setBrush(QBrush(Qt.transparent))
+
+    def refresh_theme_colors(self):
+        selected = self.isSelected()
+        self._update_color(selected)
+        colors = get_annotation_colors()
+        self.rotate_line.setPen(QPen(QColor(colors["rotate"]), 1, Qt.DashLine))
+        for handle in self.handles.values():
+            handle.setBrush(QColor(colors["rotate"] if handle.handle_type == 'rotate' else colors["handle"]))
+            handle.setPen(QPen(QColor(colors["handle_border"]), 1))
 
     def setSelected(self, selected: bool):
         super().setSelected(selected)

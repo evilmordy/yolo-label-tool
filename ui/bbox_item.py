@@ -3,7 +3,9 @@ from PyQt5.QtWidgets import (
     QGraphicsEllipseItem,
 )
 from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtGui import QPen
+from PyQt5.QtGui import QPen, QColor
+
+from ui.theme_manager import get_annotation_colors
 
 
 HANDLE_SIZE = 8
@@ -28,8 +30,9 @@ class ResizeHandle(QGraphicsEllipseItem):
         )
         self.position = position
         self.parent_bbox = parent_bbox
-        self.setBrush(Qt.white)
-        self.setPen(QPen(Qt.black, 1))
+        colors = get_annotation_colors()
+        self.setBrush(QColor(colors["handle"]))
+        self.setPen(QPen(QColor(colors["handle_border"]), 1))
         self.setZValue(10)
         self.setCursor(self._cursor())
         self.setAcceptHoverEvents(True)
@@ -50,12 +53,14 @@ class ResizeHandle(QGraphicsEllipseItem):
     
     def hoverEnterEvent(self, event):
         """鼠标进入时高亮"""
-        self.setBrush(Qt.yellow)
+        colors = get_annotation_colors()
+        self.setBrush(QColor(colors["handle_hover"]))
         super().hoverEnterEvent(event)
     
     def hoverLeaveEvent(self, event):
         """鼠标离开时恢复"""
-        self.setBrush(Qt.white)
+        colors = get_annotation_colors()
+        self.setBrush(QColor(colors["handle"]))
         super().hoverLeaveEvent(event)
     
     def mousePressEvent(self, event):
@@ -216,9 +221,17 @@ class BBoxItem(QGraphicsRectItem):
     # ======================= 颜色 =======================
 
     def _update_color(self, selected: bool):
-        """选中时紫色，未选中时蓝色"""
-        color = Qt.magenta if selected else Qt.blue
+        colors = get_annotation_colors()
+        color = QColor(colors["selected"] if selected else colors["unselected"])
         self.setPen(QPen(color, 2))
+
+    def refresh_theme_colors(self):
+        selected = self.isSelected()
+        self._update_color(selected)
+        for handle in self.handles.values():
+            colors = get_annotation_colors()
+            handle.setBrush(QColor(colors["handle"]))
+            handle.setPen(QPen(QColor(colors["handle_border"]), 1))
 
     def setSelected(self, selected: bool):
         """重写选中"""

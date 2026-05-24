@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene
 from PyQt5.QtCore import QRectF, pyqtSignal, Qt
-from PyQt5.QtGui import QWheelEvent
+from PyQt5.QtGui import QWheelEvent, QColor, QBrush
 
 class ImageView(QGraphicsView):
 
@@ -8,6 +8,8 @@ class ImageView(QGraphicsView):
 
     def __init__(self):
         super().__init__()
+        self.setObjectName("canvasView")
+        self.setBackgroundBrush(QBrush(QColor("#2d2d2d")))
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
         self.scene.selectionChanged.connect(self.on_selection_changed)
@@ -16,6 +18,9 @@ class ImageView(QGraphicsView):
         self.zoom_level = 1.0
         self.setDragMode(QGraphicsView.ScrollHandDrag)  # 支持空格拖拽平移
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)  # 以鼠标位置为缩放中心
+
+    def set_canvas_color(self, color_hex: str):
+        self.setBackgroundBrush(QBrush(QColor(color_hex)))
 
     def load_pixmap(self, pixmap):
         """加载图片（可选择是否清除场景）"""

@@ -9,16 +9,48 @@
 git clone项目到本地，然后安装这两个库：pyqt5,pillow.
 直接运行main.py即可。
 ### Windows
-在release中下载YOLOTxtMaker.exe，运行它
-有些时候这个exe可能会没有(更新的时候)，就用第一种方法，或者你也可以自己编译，安个pyinstaller就可以了，这些库都不难安装——运行：
-```bash
-pyinstaller -F -w --add-data "resources/style.qss:resources" main.py
-```
+在 [Release 页面](https://github.com/evilmordy/yolo-label-tool/releases) 下载 `YOLOTxtMaker.exe`，运行它。
 ### Linux
-在release中下载YOLOTxtMaker-linux，运行它。
-这里默认大家都会chmod +x 来使得可执行文件具有执行权限。不会的话，你应该了解linux的基础知识。
+在 Release 页面下载 `YOLOTxtMaker.AppImage`，赋予执行权限后运行：
 
-前往 [release页面](https://github.com/evilmordy/yolo-label-tool/releases/tag/v1.0.0) 下载对应系统的可执行文件。
+```bash
+chmod +x YOLOTxtMaker.AppImage
+./YOLOTxtMaker.AppImage
+```
+
+### macOS
+在 Release 页面下载 `YOLOTxtMaker-mac.zip`，解压后运行其中的 `YOLOTxtMaker.app`。
+
+### 自行编译
+安装 pyinstaller 后，在项目根目录执行：
+
+```bash
+pip install -r requirements.txt
+pyinstaller main.spec
+```
+
+Windows 产物：`dist/YOLOTxtMaker.exe`  
+Linux 产物：`dist/YOLOTxtMaker`  
+macOS 产物：`dist/YOLOTxtMaker.app`
+
+## 发布新版本
+
+本项目通过 GitHub Actions 在推送版本 tag 时自动构建并发布三平台可执行文件。
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+推送 tag 后，Actions 会自动构建并创建 Release，包含：
+
+| 平台 | 文件名 |
+|------|--------|
+| Windows | `YOLOTxtMaker.exe` |
+| Linux | `YOLOTxtMaker.AppImage` |
+| macOS | `YOLOTxtMaker-mac.zip`（内含 `YOLOTxtMaker.app`） |
+
+也可在 GitHub Actions 页面手动触发 `workflow_dispatch` 进行构建测试（不会创建 Release，除非推送的是 tag）。
 
 ## 快捷键
 

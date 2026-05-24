@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QFileDialog, QListWidget, QMessageBox,
-    QAction, QDockWidget, QPushButton, QWidget,
-    QVBoxLayout, QHBoxLayout, QListWidgetItem, QSpinBox, QLabel, QDialog, QRadioButton, QButtonGroup
+    QAction, QDockWidget, QPushButton, QWidget, QActionGroup,
+    QVBoxLayout, QHBoxLayout, QListWidgetItem, QSpinBox, QLabel, QDialog, QRadioButton, QButtonGroup, QFrame
 )
 from PyQt5.QtCore import QRectF, pyqtSignal, Qt, QTimer, QPointF
 from PyQt5.QtGui import QFont, QKeySequence
@@ -15,6 +15,8 @@ from core.label_manager import LabelManager
 from core.bbox import BBox
 from core.yolo_io import load_yolo_txt, save_yolo_txt
 from utils.image_loader import load_image
+from ui.theme_manager import apply_theme, get_theme_ids, get_theme_name, get_current_theme_id
+from PyQt5.QtWidgets import QApplication
 
 class MainWindow(QMainWindow):
 
@@ -34,6 +36,7 @@ class MainWindow(QMainWindow):
         self.current_image_index = 0
         self.save_folder_path = None  # 保存路径
         self.bbox_items = {}
+        self.theme_actions = {}
 
         self._create_left_panel()
         self._create_right_panel()
@@ -57,8 +60,11 @@ class MainWindow(QMainWindow):
 
     def _create_left_panel(self):
         dock = QDockWidget('图片列表', self)
+        dock.setMinimumWidth(240)
         panel = QWidget()
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         self.image_list_widget = QListWidget()
         self.image_list_widget.currentRowChanged.connect(self.on_image_list_row_changed)
@@ -69,11 +75,15 @@ class MainWindow(QMainWindow):
 
     def _create_right_panel(self):
         dock = QDockWidget('BBoxs', self)
+        dock.setMinimumWidth(240)
         panel = QWidget()
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         # 保存路径显示
         self.save_path_label = QLabel("保存路径: 未选择")
+        self.save_path_label.setObjectName("secondaryLabel")
         self.save_path_label.setWordWrap(True)
         layout.addWidget(self.save_path_label)
         
@@ -81,8 +91,11 @@ class MainWindow(QMainWindow):
         btn_set_save_path.clicked.connect(self.set_save_folder)
         layout.addWidget(btn_set_save_path)
 
+        layout.addWidget(self._make_separator())
+
         # 图片导航
         nav_layout = QHBoxLayout()
+        nav_layout.setSpacing(8)
         btn_prev = QPushButton("上一张")
         btn_next = QPushButton("下一张")
         self.img_counter_label = QLabel("0/0")
@@ -100,14 +113,19 @@ class MainWindow(QMainWindow):
         zoom_layout.addWidget(btn_fit_view)
         layout.addLayout(zoom_layout)
 
+        layout.addWidget(self._make_separator())
+
         # BBox列表
         self.bbox_list = QListWidget()
         self.bbox_list.itemClicked.connect(self.on_list_selected)
         layout.addWidget(QLabel("BBox列表:"))
         layout.addWidget(self.bbox_list)
 
+        layout.addWidget(self._make_separator())
+
         # 模式切换
         mode_layout = QHBoxLayout()
+        mode_layout.setSpacing(8)
         self.mode_group = QButtonGroup(self)
         self.radio_rect = QRadioButton("标准矩形(Rect)")
         self.radio_obb = QRadioButton("平行四边形(OBB)")
@@ -120,6 +138,7 @@ class MainWindow(QMainWindow):
 
         # BBox操作按钮
         bbox_btn_layout = QHBoxLayout()
+        bbox_btn_layout.setSpacing(8)
         btn_add = QPushButton("新添")
         btn_del = QPushButton("删除")
         btn_add.clicked.connect(self.add_bbox)
@@ -138,9 +157,11 @@ class MainWindow(QMainWindow):
         class_layout.addWidget(self.class_id_spinbox)
         layout.addLayout(class_layout)
 
+        layout.addWidget(self._make_separator())
+
         # 保存按钮
         btn_save = QPushButton("保存 YOLO txt")
-        btn_save.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }")
+        btn_save.setObjectName("btnSave")
         btn_save.clicked.connect(self.save_txt)
         layout.addWidget(btn_save)
 
@@ -148,6 +169,13 @@ class MainWindow(QMainWindow):
 
         dock.setWidget(panel)
         self.addDockWidget(0x2, dock)
+
+    def _make_separator(self):
+        line = QFrame()
+        line.setObjectName("panelSeparator")
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Plain)
+        return line
 
     def _create_menu(self):
         menu = self.menuBar()
@@ -161,6 +189,25 @@ class MainWindow(QMainWindow):
         open_folder = QAction("打开文件夹", self)
         open_folder.triggered.connect(self.open_folder)
         file_menu.addAction(open_folder)
+
+        theme_menu = menu.addMenu("主题色")
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+        current_theme = get_current_theme_id()
+
+        for theme_id in get_theme_ids():
+            action = QAction(get_theme_name(theme_id), self)
+            action.setCheckable(True)
+            action.setChecked(theme_id == current_theme)
+            action.triggered.connect(lambda checked, tid=theme_id: self._apply_theme(tid))
+            theme_group.addAction(action)
+            theme_menu.addAction(action)
+            self.theme_actions[theme_id] = action
+
+    def _apply_theme(self, theme_id):
+        apply_theme(QApplication.instance(), self, theme_id)
+        for tid, action in self.theme_actions.items():
+            action.setChecked(tid == theme_id)
 
     def set_save_folder(self):
         """设置保存路径"""
@@ -349,16 +396,9 @@ class MainWindow(QMainWindow):
     
     def _show_save_success_toast(self):
         """显示保存成功的淡出提示"""
-        # 创建临时提示标签
         toast = QLabel("✓ 保存成功")
+        toast.setObjectName("toastLabel")
         toast.setFont(QFont("Arial", 12, QFont.Bold))
-        toast.setStyleSheet(
-            "background-color: #4CAF50; "
-            "color: white; "
-            "padding: 10px 20px; "
-            "border-radius: 5px; "
-            "border: none;"
-        )
         toast.setParent(self)
         toast.adjustSize()
         
