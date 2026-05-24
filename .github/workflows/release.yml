@@ -92,7 +92,6 @@ jobs:
             > AppDir/YOLOTxtMaker.desktop
 
           cp AppDir/YOLOTxtMaker.desktop AppDir/usr/share/applications/
-          cp AppDir/YOLOTxtMaker.desktop AppDir/
 
           convert -size 256x256 xc:'#0ea5e9' AppDir/YOLOTxtMaker.png
           cp AppDir/YOLOTxtMaker.png AppDir/usr/share/icons/hicolor/256x256/apps/
@@ -121,7 +120,7 @@ jobs:
       - name: Install dependencies and build
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --only-binary PyQt5,PyQt5-Qt5,PyQt5-sip -r requirements.txt
           pyinstaller main.spec
 
       - name: Verify build output
