@@ -3,9 +3,11 @@ from PyQt5.QtWidgets import (
     QGraphicsEllipseItem,
 )
 from PyQt5.QtCore import Qt, QRectF, QPointF
+from PyQt5.QtWidgets import QGraphicsItem
 from PyQt5.QtGui import QPen, QColor
 
 from ui.theme_manager import get_annotation_colors
+from ui.graphics_utils import select_only, select_only_parent
 
 
 HANDLE_SIZE = 8
@@ -36,6 +38,7 @@ class ResizeHandle(QGraphicsEllipseItem):
         self.setZValue(10)
         self.setCursor(self._cursor())
         self.setAcceptHoverEvents(True)
+        self.setFlag(QGraphicsItem.ItemIsSelectable, False)
 
     def _cursor(self):
         """根据控制点位置返回相应的鼠标光标"""
@@ -65,6 +68,8 @@ class ResizeHandle(QGraphicsEllipseItem):
     
     def mousePressEvent(self, event):
         """记录拖拽起始位置"""
+        self.parent_bbox._notify_edit_start()
+        select_only_parent(self.parent_bbox)
         self._drag_start_pos = self.mapToScene(event.pos())
         self._original_rect = self.parent_bbox.sceneBoundingRect()
         event.accept()
@@ -202,7 +207,8 @@ class BBoxItem(QGraphicsRectItem):
         
         self.bbox_data = bbox_data
         self.image_rect = None  # scene中图片的rect
-        
+        self.on_edit_start = None
+
         # 只允许选择，不使用内置拖拽
         self.setFlags(QGraphicsRectItem.ItemIsSelectable)
         self.setAcceptHoverEvents(True)
@@ -266,9 +272,15 @@ class BBoxItem(QGraphicsRectItem):
 
     # ======================= 整体拖拽（可选） =======================
 
+    def _notify_edit_start(self):
+        if self.on_edit_start:
+            self.on_edit_start()
+
     def mousePressEvent(self, event):
         """按下鼠标开始拖拽"""
         if event.button() == Qt.LeftButton:
+            self._notify_edit_start()
+            select_only(self)
             self._is_dragging = True
             self._drag_start_pos = self.mapToScene(event.pos())
             self._drag_start_rect = self.sceneBoundingRect()

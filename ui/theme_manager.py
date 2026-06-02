@@ -99,7 +99,13 @@ def get_theme_ids():
 
 
 def get_theme_name(theme_id):
-    return THEMES[theme_id]["name"]
+    from i18n.translator import tr
+    key_map = {
+        "light_blue": "theme.light_blue",
+        "light_pink": "theme.light_pink",
+        "deep_blue": "theme.deep_blue",
+    }
+    return tr(key_map.get(theme_id, "theme.deep_blue"))
 
 
 def get_current_theme_id():

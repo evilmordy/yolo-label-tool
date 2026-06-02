@@ -2,14 +2,17 @@ import sys
 from PyQt5.QtWidgets import QApplication, QStyleFactory
 from ui.main_window import MainWindow
 from ui.theme_manager import apply_theme, init_saved_theme
+from core.settings_manager import load_language
+from i18n.translator import init_language, tr
 
 def main():
     app = QApplication(sys.argv)
     app.setStyle(QStyleFactory.create("Fusion"))
 
+    init_language(load_language())
     saved_theme = init_saved_theme()
     window = MainWindow()
-    window.setWindowTitle("YOLO 标注工具 - YOLOTxtMaker")
+    window.setWindowTitle(tr("app.title"))
     apply_theme(app, window, saved_theme)
     
     # 获取屏幕大小，设置合理的初始窗口大小

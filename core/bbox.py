@@ -5,11 +5,11 @@ from typing import List, Tuple, Optional
 class BBox:
     id: int
     class_id: int
-    type: str = 'rect'  # 'rect' or 'obb'
+    type: str = 'rect'  # 'rect', 'obb', or 'polygon'
     # For rect
     x_center: float = 0.0
     y_center: float = 0.0
     width: float = 0.0
     height: float = 0.0
-    # For obb (4 vertices, normalized)
+    # For obb / polygon (normalized coordinates)
     points: Optional[List[Tuple[float, float]]] = None

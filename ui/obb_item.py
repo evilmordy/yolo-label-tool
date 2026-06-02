@@ -1,9 +1,10 @@
 import math
-from PyQt5.QtWidgets import QGraphicsPolygonItem, QGraphicsEllipseItem, QGraphicsLineItem
+from PyQt5.QtWidgets import QGraphicsPolygonItem, QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsItem
 from PyQt5.QtCore import Qt, QPointF, QLineF
 from PyQt5.QtGui import QPen, QPolygonF, QBrush, QColor
 
 from ui.theme_manager import get_annotation_colors
+from ui.graphics_utils import select_only, select_only_parent
 
 HANDLE_SIZE = 8
 
@@ -24,6 +25,7 @@ class OBBHandle(QGraphicsEllipseItem):
             self.setCursor(Qt.PointingHandCursor)
         else:
             self.setCursor(Qt.CrossCursor)
+        self.setFlag(QGraphicsItem.ItemIsSelectable, False)
 
     def hoverEnterEvent(self, event):
         colors = get_annotation_colors()
@@ -36,6 +38,8 @@ class OBBHandle(QGraphicsEllipseItem):
         super().hoverLeaveEvent(event)
 
     def mousePressEvent(self, event):
+        self.parent_obb._notify_edit_start()
+        select_only_parent(self.parent_obb)
         self._drag_start_pos = self.mapToScene(event.pos())
         self.parent_obb.start_drag(self.handle_type, self._drag_start_pos)
         event.accept()
@@ -54,7 +58,8 @@ class OBBItem(QGraphicsPolygonItem):
         super().__init__()
         self.bbox_data = bbox_data
         self.image_rect = None
-        
+        self.on_edit_start = None
+
         self.cx = center.x()
         self.cy = center.y()
         self.w = width
@@ -73,6 +78,7 @@ class OBBItem(QGraphicsPolygonItem):
         self.rotate_line = QGraphicsLineItem(self)
         colors = get_annotation_colors()
         self.rotate_line.setPen(QPen(QColor(colors["rotate"]), 1, Qt.DashLine))
+        self.rotate_line.setFlag(QGraphicsItem.ItemIsSelectable, False)
         
         self._is_dragging = False
         self._update_geometry()
@@ -219,8 +225,14 @@ class OBBItem(QGraphicsPolygonItem):
     def end_drag(self):
         pass
 
+    def _notify_edit_start(self):
+        if self.on_edit_start:
+            self.on_edit_start()
+
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self._notify_edit_start()
+            select_only(self)
             self._is_dragging = True
             self._drag_start_pos = self.mapToScene(event.pos())
             self._drag_start_cx = self.cx
