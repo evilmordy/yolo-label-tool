@@ -1,28 +1,23 @@
 from typing import List
 
-from PyQt5.QtWidgets import QGraphicsPolygonItem, QGraphicsEllipseItem, QGraphicsItem
+from PyQt5.QtWidgets import QGraphicsPolygonItem
 from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QPen, QPolygonF, QBrush, QColor
 
 from ui.theme_manager import get_annotation_colors
 from ui.graphics_utils import select_only, select_only_parent
+from ui.screen_handle import ScreenHandle, event_scene_pos
 
-HANDLE_SIZE = 8
 
-
-class PolygonVertexHandle(QGraphicsEllipseItem):
+class PolygonVertexHandle(ScreenHandle):
     def __init__(self, vertex_index: int, parent):
-        super().__init__(-HANDLE_SIZE / 2, -HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, parent)
+        super().__init__(parent)
         self.vertex_index = vertex_index
         self.parent_polygon = parent
         colors = get_annotation_colors()
         self.setBrush(QColor(colors["handle"]))
         self.setPen(QPen(QColor(colors["handle_border"]), 1))
-        self.setZValue(10)
-        self.setAcceptHoverEvents(True)
         self.setCursor(Qt.CrossCursor)
-        self.setFlag(QGraphicsItem.ItemIsSelectable, False)
-        self.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
 
     def hoverEnterEvent(self, event):
         colors = get_annotation_colors()
@@ -37,11 +32,17 @@ class PolygonVertexHandle(QGraphicsEllipseItem):
     def mousePressEvent(self, event):
         self.parent_polygon._notify_edit_start()
         select_only_parent(self.parent_polygon)
+        self._press_scene = event_scene_pos(event)
+        self._origin = QPointF(self.parent_polygon.vertices[self.vertex_index])
         event.accept()
 
     def mouseMoveEvent(self, event):
-        current_pos = self.parent_polygon._clamp_point(self.mapToScene(event.pos()))
-        self.parent_polygon._set_vertex(self.vertex_index, current_pos)
+        current = event_scene_pos(event)
+        delta = current - self._press_scene
+        self.parent_polygon._set_vertex(
+            self.vertex_index,
+            QPointF(self._origin.x() + delta.x(), self._origin.y() + delta.y()),
+        )
         event.accept()
 
     def mouseReleaseEvent(self, event):
@@ -142,7 +143,7 @@ class PolygonItem(QGraphicsPolygonItem):
             self._notify_edit_start()
             select_only(self)
             self._is_dragging = True
-            self._drag_start_pos = self.mapToScene(event.pos())
+            self._drag_start_pos = event_scene_pos(event)
             self._drag_start_vertices = [QPointF(v) for v in self.vertices]
             event.accept()
         else:
@@ -150,7 +151,7 @@ class PolygonItem(QGraphicsPolygonItem):
 
     def mouseMoveEvent(self, event):
         if self._is_dragging:
-            current_pos = self.mapToScene(event.pos())
+            current_pos = event_scene_pos(event)
             dx = current_pos.x() - self._drag_start_pos.x()
             dy = current_pos.y() - self._drag_start_pos.y()
             new_vertices = []

@@ -1,19 +1,13 @@
-from PyQt5.QtWidgets import (
-    QGraphicsRectItem,
-    QGraphicsEllipseItem,
-)
+from PyQt5.QtWidgets import QGraphicsRectItem
 from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtWidgets import QGraphicsItem
 from PyQt5.QtGui import QPen, QColor
 
 from ui.theme_manager import get_annotation_colors
 from ui.graphics_utils import select_only, select_only_parent
+from ui.screen_handle import ScreenHandle, event_scene_pos
 
 
-HANDLE_SIZE = 8
-
-
-class ResizeHandle(QGraphicsEllipseItem):
+class ResizeHandle(ScreenHandle):
     """
     拉伸控制点 - PPT级别的独立拖拽逻辑
     
@@ -21,25 +15,17 @@ class ResizeHandle(QGraphicsEllipseItem):
     - 完全自主处理拖拽，不依赖父项的复杂状态
     - 直接在scene坐标中计算和约束
     - 所有边界检查都在这里完成
+    - 鼠标位置用 event.scenePos()。手柄忽略视图变换，mapToScene(event.pos())
+      在 Windows 缩放 / 视图 fit 之后会对不上光标。
     """
     def __init__(self, position: str, parent_bbox):
-        super().__init__(
-            -HANDLE_SIZE / 2,
-            -HANDLE_SIZE / 2,
-            HANDLE_SIZE,
-            HANDLE_SIZE,
-            parent_bbox
-        )
+        super().__init__(parent_bbox)
         self.position = position
         self.parent_bbox = parent_bbox
         colors = get_annotation_colors()
         self.setBrush(QColor(colors["handle"]))
         self.setPen(QPen(QColor(colors["handle_border"]), 1))
-        self.setZValue(10)
         self.setCursor(self._cursor())
-        self.setAcceptHoverEvents(True)
-        self.setFlag(QGraphicsItem.ItemIsSelectable, False)
-        self.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
 
     def _cursor(self):
         """根据控制点位置返回相应的鼠标光标"""
@@ -71,14 +57,13 @@ class ResizeHandle(QGraphicsEllipseItem):
         """记录拖拽起始位置"""
         self.parent_bbox._notify_edit_start()
         select_only_parent(self.parent_bbox)
-        self._drag_start_pos = self.mapToScene(event.pos())
+        self._press_scene = event_scene_pos(event)
         self._original_rect = self.parent_bbox.scene_box_rect()
         event.accept()
     
     def mouseMoveEvent(self, event):
         """拖拽时实时计算新矩形并约束"""
-        current_pos = self.mapToScene(event.pos())
-        self._apply_resize(current_pos)
+        self._apply_resize(event_scene_pos(event))
         event.accept()
     
     def mouseReleaseEvent(self, event):
@@ -102,9 +87,10 @@ class ResizeHandle(QGraphicsEllipseItem):
         x2 = orig_rect.right()
         y2 = orig_rect.bottom()
         
-        # 获取目标坐标
-        target_x = target_pos.x()
-        target_y = target_pos.y()
+        # 用相对按下点的位移，而不是把边直接吸到光标上。
+        # 命中区域比圆点大，点在圆点旁边时不能在第一下就把边跳过去。
+        dx = target_pos.x() - self._press_scene.x()
+        dy = target_pos.y() - self._press_scene.y()
         
         # 获取图像边界
         img = self.parent_bbox.image_rect
@@ -122,32 +108,32 @@ class ResizeHandle(QGraphicsEllipseItem):
         # 根据handle位置计算新的四条边
         if self.position == "r":
             # 右边：只改x2
-            x2 = target_x
+            x2 = orig_rect.right() + dx
             x2 = max(x2, x1 + MIN_SIZE)      # 最小宽度
             x2 = min(x2, img_x2)              # 图像右边界
             
         elif self.position == "l":
             # 左边：只改x1
-            x1 = target_x
+            x1 = orig_rect.left() + dx
             x1 = max(x1, img_x1)              # 图像左边界
             x1 = min(x1, x2 - MIN_SIZE)       # 最小宽度
             
         elif self.position == "b":
             # 底边：只改y2
-            y2 = target_y
+            y2 = orig_rect.bottom() + dy
             y2 = max(y2, y1 + MIN_SIZE)      # 最小高度
             y2 = min(y2, img_y2)              # 图像底边界
             
         elif self.position == "t":
             # 顶边：只改y1
-            y1 = target_y
+            y1 = orig_rect.top() + dy
             y1 = max(y1, img_y1)              # 图像顶边界
             y1 = min(y1, y2 - MIN_SIZE)       # 最小高度
             
         elif self.position == "br":
             # 右下角：改x2和y2
-            x2 = target_x
-            y2 = target_y
+            x2 = orig_rect.right() + dx
+            y2 = orig_rect.bottom() + dy
             x2 = max(x2, x1 + MIN_SIZE)
             x2 = min(x2, img_x2)
             y2 = max(y2, y1 + MIN_SIZE)
@@ -155,8 +141,8 @@ class ResizeHandle(QGraphicsEllipseItem):
             
         elif self.position == "bl":
             # 左下角：改x1和y2
-            x1 = target_x
-            y2 = target_y
+            x1 = orig_rect.left() + dx
+            y2 = orig_rect.bottom() + dy
             x1 = max(x1, img_x1)
             x1 = min(x1, x2 - MIN_SIZE)
             y2 = max(y2, y1 + MIN_SIZE)
@@ -164,8 +150,8 @@ class ResizeHandle(QGraphicsEllipseItem):
             
         elif self.position == "tr":
             # 右上角：改x2和y1
-            x2 = target_x
-            y1 = target_y
+            x2 = orig_rect.right() + dx
+            y1 = orig_rect.top() + dy
             x2 = max(x2, x1 + MIN_SIZE)
             x2 = min(x2, img_x2)
             y1 = max(y1, img_y1)
@@ -173,8 +159,8 @@ class ResizeHandle(QGraphicsEllipseItem):
             
         elif self.position == "tl":
             # 左上角：改x1和y1
-            x1 = target_x
-            y1 = target_y
+            x1 = orig_rect.left() + dx
+            y1 = orig_rect.top() + dy
             x1 = max(x1, img_x1)
             x1 = min(x1, x2 - MIN_SIZE)
             y1 = max(y1, img_y1)
@@ -283,7 +269,7 @@ class BBoxItem(QGraphicsRectItem):
             self._notify_edit_start()
             select_only(self)
             self._is_dragging = True
-            self._drag_start_pos = self.mapToScene(event.pos())
+            self._drag_start_pos = event_scene_pos(event)
             self._drag_start_rect = self.scene_box_rect()
             event.accept()
         else:
@@ -292,7 +278,7 @@ class BBoxItem(QGraphicsRectItem):
     def mouseMoveEvent(self, event):
         """拖拽时移动整体bbox"""
         if self._is_dragging:
-            current_pos = self.mapToScene(event.pos())
+            current_pos = event_scene_pos(event)
             dx = current_pos.x() - self._drag_start_pos.x()
             dy = current_pos.y() - self._drag_start_pos.y()
             

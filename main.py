@@ -1,11 +1,39 @@
+import os
 import sys
+
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QStyleFactory
 from ui.main_window import MainWindow
 from ui.theme_manager import apply_theme, init_saved_theme
 from core.settings_manager import load_language
 from i18n.translator import init_language, tr
 
+
+def _configure_windows_dpi():
+    """Keep mouse coordinates aligned on fractional Windows display scales.
+
+    Linux main.py is unaffected: this runs only on win32. 125% and 150%
+    scaling is the common Windows setup. Rounding that factor to an integer
+    makes Qt's scene mapping disagree with the cursor, which shows up as the
+    box jumping under the pointer. PassThrough keeps the real scale factor.
+    Attributes must be set before QApplication is constructed.
+    """
+    if sys.platform != "win32":
+        return
+    # Honor an explicit opt-out. Otherwise fractional scaling stays exact.
+    if os.environ.get("QT_ENABLE_HIGHDPI_SCALING") == "0":
+        return
+    os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
+    os.environ.setdefault("QT_SCALE_FACTOR_ROUNDING_POLICY", "PassThrough")
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
+
+
 def main():
+    _configure_windows_dpi()
     app = QApplication(sys.argv)
     app.setStyle(QStyleFactory.create("Fusion"))
 
