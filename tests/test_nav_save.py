@@ -26,6 +26,7 @@ from core.yolo_io import (
 from core.bbox import BBox
 from i18n.locales import en, ja, zh
 from i18n.translator import tr
+from ui.bbox_item import BBoxItem
 from ui.main_window import MainWindow
 
 
@@ -241,6 +242,59 @@ class NavSaveTests(unittest.TestCase):
         current_bytes = self._txt(current).read_bytes()
         self.window.save_all_in_folder(show_toast=True)
         self.assertEqual(self._txt(current).read_bytes(), current_bytes)
+
+    def test_load_image_does_not_rebuild_the_scene_twice(self):
+        image = self._png("box.png")
+        txt = self._txt(image)
+        txt.write_text("0 0.500000 0.500000 0.250000 0.250000\n", encoding="utf-8")
+        clears = {"n": 0}
+        fits = {"n": 0}
+        scene = self.window.image_view.scene
+        original_clear = scene.clear
+        original_fit = self.window.image_view.fit_to_view
+
+        def wrapped_clear():
+            clears["n"] += 1
+            return original_clear()
+
+        def wrapped_fit():
+            fits["n"] += 1
+            return original_fit()
+
+        scene.clear = wrapped_clear
+        self.window.image_view.fit_to_view = wrapped_fit
+        try:
+            self._open([image])
+        finally:
+            scene.clear = original_clear
+            self.window.image_view.fit_to_view = original_fit
+
+        self.assertEqual(clears["n"], 1)
+        self.assertGreaterEqual(fits["n"], 1)
+        pixmaps = [
+            item for item in scene.items()
+            if type(item).__name__ == "QGraphicsPixmapItem"
+        ]
+        boxes = [item for item in scene.items() if isinstance(item, BBoxItem)]
+        self.assertEqual(len(pixmaps), 1)
+        self.assertEqual(len(boxes), 1)
+        self.assertEqual(pixmaps[0].zValue(), -1)
+        self.assertEqual(
+            self.window.image_view.sceneRect().width(),
+            pixmaps[0].pixmap().width(),
+        )
+        self.assertAlmostEqual(self.window.label_manager.bboxes[0].width, 0.25)
+        self.assertAlmostEqual(self.window.label_manager.bboxes[0].height, 0.25)
+        self.assertGreater(self.window.image_view.zoom_level, 0)
+        self.window.fit_image_to_view()
+        self.assertEqual(
+            len([
+                item for item in scene.items()
+                if type(item).__name__ == "QGraphicsPixmapItem"
+            ]),
+            1,
+        )
+        self.assertAlmostEqual(self.window.label_manager.bboxes[0].width, 0.25)
 
     def test_shortcut_marks_background(self):
         image = self._png("a.png")

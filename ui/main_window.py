@@ -798,16 +798,19 @@ class MainWindow(QMainWindow):
         try:
             self.current_image_path = image_path
             pixmap = load_image(self.current_image_path, self._image_cache)
-            self.image_view.load_pixmap(pixmap)
+            # load_pixmap already clears the scene, installs the pixmap,
+            # sets the scene rect, and fits the view. Drop stale Python
+            # wrappers first so selection signals cannot touch deleted items.
+            self.bbox_items = {}
+            self.image_view.scene.blockSignals(True)
+            try:
+                self.image_view.load_pixmap(pixmap)
+            finally:
+                self.image_view.scene.blockSignals(False)
 
             txt_path = self.save_folder_path / image_path.with_suffix(".txt").name
             self.label_manager.bboxes = load_yolo_txt(txt_path)
             self._undo_stack.clear()
-
-            self.image_view.scene.clear()
-            pixmap_item = self.image_view.scene.addPixmap(pixmap)
-            pixmap_item.setZValue(-1)
-            self.bbox_items = {}
 
             img_rect = QRectF(0, 0, pixmap.width(), pixmap.height())
             self._current_img_rect = img_rect
