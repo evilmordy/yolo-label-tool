@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QListWidgetItem, QSpinBox, QLabel, QDialog, QRadioButton, QButtonGroup, QFrame
 )
 from PyQt5.QtCore import QRectF, pyqtSignal, Qt, QTimer, QPointF
-from PyQt5.QtGui import QFont, QKeySequence
+from PyQt5.QtGui import QColor, QFont, QKeySequence
 from pathlib import Path
 import math
 
@@ -16,7 +16,15 @@ from ui.polygon_draw_controller import PolygonDrawController
 from ui.settings_dialog import SettingsDialog
 from core.label_manager import LabelManager
 from core.bbox import BBox
-from core.yolo_io import load_yolo_txt, save_yolo_txt
+from core.yolo_io import (
+    STATUS_BACKGROUND,
+    STATUS_LABELED,
+    STATUS_UNLABELED,
+    annotation_signature,
+    load_yolo_txt,
+    read_label_file_status,
+    save_yolo_txt,
+)
 from core.settings_manager import (
     load_all, ShortcutKey, get_shortcut, key_event_matches,
     load_path_prefs, save_path_pref,
@@ -25,8 +33,11 @@ from core.settings_manager import (
 from core.undo_stack import UndoStack
 from core.bbox_clone import clone_bboxes
 from ui.graphics_utils import pick_preferred_bbox_root, resolve_bbox_root
-from utils.image_loader import load_image
-from ui.theme_manager import apply_theme, get_theme_ids, get_theme_name, get_current_theme_id
+from utils.image_loader import ImageCache, load_image, neighbor_paths
+from utils.natural_sort import natural_sorted
+from ui.theme_manager import (
+    apply_theme, get_theme_ids, get_theme_name, get_current_theme_id, get_palette,
+)
 from i18n.translator import tr, set_language, on_language_changed
 from PyQt5.QtWidgets import QApplication
 
@@ -62,6 +73,10 @@ class MainWindow(QMainWindow):
         self._syncing_selection = False
         self._undo_stack = UndoStack()
         self._image_dirty = False
+        self._saved_signature = annotation_signature([])
+        self._nav_direction = 1
+        self._image_cache = ImageCache(parent=self)
+        self._label_status_cache = {}
 
         self._create_left_panel()
         self._create_right_panel()
@@ -112,6 +127,7 @@ class MainWindow(QMainWindow):
             (ShortcutKey.OBB, lambda: self.radio_obb.setChecked(True)),
             (ShortcutKey.POLYGON, lambda: self.radio_polygon.setChecked(True)),
             (ShortcutKey.SAVE, lambda: self.save_txt(show_toast=True)),
+            (ShortcutKey.MARK_BACKGROUND, self._shortcut_mark_background),
             (ShortcutKey.UNDO, self._undo),
             (ShortcutKey.ADD, self._shortcut_add_bbox),
             (ShortcutKey.DELETE, self._shortcut_delete),
@@ -130,6 +146,11 @@ class MainWindow(QMainWindow):
         if self.polygon_draw_controller.is_active():
             return
         self.add_bbox()
+
+    def _shortcut_mark_background(self):
+        if self.polygon_draw_controller.is_active():
+            return
+        self.mark_as_background()
 
     def _shortcut_delete(self):
         if self.polygon_draw_controller.is_active():
@@ -274,6 +295,10 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self._make_separator())
 
+        btn_background = QPushButton(tr("btn.mark_background"))
+        btn_background.clicked.connect(self.mark_as_background)
+        layout.addWidget(btn_background)
+
         btn_save = QPushButton(tr("btn.save_yolo"))
         btn_save.setObjectName("btnSave")
         btn_save.clicked.connect(lambda: self.save_txt(show_toast=True))
@@ -293,6 +318,7 @@ class MainWindow(QMainWindow):
             "btn_add": btn_add,
             "btn_del": btn_del,
             "btn_save": btn_save,
+            "btn_background": btn_background,
         }
 
     def _make_separator(self):
@@ -314,6 +340,10 @@ class MainWindow(QMainWindow):
         self.action_open_folder = QAction(tr("menu.open_folder"), self)
         self.action_open_folder.triggered.connect(self.open_folder)
         self.file_menu.addAction(self.action_open_folder)
+
+        self.action_mark_background = QAction(tr("menu.mark_background"), self)
+        self.action_mark_background.triggered.connect(self.mark_as_background)
+        self.file_menu.addAction(self.action_mark_background)
 
         self.theme_menu = menu.addMenu(tr("menu.theme"))
         theme_group = QActionGroup(self)
@@ -366,6 +396,7 @@ class MainWindow(QMainWindow):
         self.file_menu.setTitle(tr("menu.file"))
         self.action_open_img.setText(tr("menu.open_image"))
         self.action_open_folder.setText(tr("menu.open_folder"))
+        self.action_mark_background.setText(tr("menu.mark_background"))
         self.theme_menu.setTitle(tr("menu.theme"))
         for theme_id, action in self.theme_actions.items():
             action.setText(get_theme_name(theme_id))
@@ -377,6 +408,7 @@ class MainWindow(QMainWindow):
         self._ui_refs["btn_add"].setText(tr("btn.add"))
         self._ui_refs["btn_del"].setText(tr("btn.delete"))
         self._ui_refs["btn_save"].setText(tr("btn.save_yolo"))
+        self._ui_refs["btn_background"].setText(tr("btn.mark_background"))
         self.bbox_list_label.setText(tr("label.bbox_list"))
         self.radio_rect.setText(tr("mode.rect"))
         self.radio_obb.setText(tr("mode.obb"))
@@ -422,6 +454,10 @@ class MainWindow(QMainWindow):
         self.label_manager.bboxes = clone_bboxes(snapshot)
         self._rebuild_scene_from_bboxes()
         self.refresh_bbox_list()
+        if self._has_unsaved_changes():
+            self._mark_dirty()
+        else:
+            self._clear_dirty()
         if self.label_manager.bboxes:
             self._select_bbox_by_id(self.label_manager.bboxes[0].id)
         else:
@@ -609,6 +645,8 @@ class MainWindow(QMainWindow):
             action.setChecked(tid == theme_id)
         for tid, action in self.theme_actions.items():
             action.setText(get_theme_name(tid))
+        if self.image_list:
+            self._refresh_image_list()
 
     def set_save_folder(self):
         start_dir = self._dialog_start_dir(KEY_SAVE_FOLDER)
@@ -619,6 +657,9 @@ class MainWindow(QMainWindow):
             self.save_folder_path = Path(folder)
             save_path_pref(KEY_SAVE_FOLDER, folder)
             self._update_save_path_label()
+            self._invalidate_label_status_cache()
+            if self.image_list:
+                self._refresh_image_list()
 
     def open_image(self):
         if not self.save_folder_path:
@@ -638,6 +679,9 @@ class MainWindow(QMainWindow):
         if self.current_image_path:
             self._maybe_save_before_nav()
 
+        self._image_cache.invalidate()
+        self._invalidate_label_status_cache()
+        self._nav_direction = 1
         self.current_image_path = Path(path)
         save_path_pref(KEY_LAST_IMAGE_DIR, str(self.current_image_path.parent))
         self.current_folder_path = None
@@ -660,26 +704,34 @@ class MainWindow(QMainWindow):
         if not folder:
             return
 
-        folder_path = Path(folder)
         save_path_pref(KEY_LAST_FOLDER, folder)
+        self._open_folder_path(Path(folder))
+
+    def _open_folder_path(self, folder_path: Path):
         image_exts = {".jpg", ".jpeg", ".png", ".bmp"}
-        self.image_list = sorted([
+        new_list = natural_sorted([
             f for f in folder_path.iterdir()
             if f.suffix.lower() in image_exts
         ])
-
-        if not self.image_list:
+        if not new_list:
             QMessageBox.warning(self, tr("msg.warning"), tr("msg.no_images_in_folder"))
             return
 
+        # Save against the previous list. Replacing image_list first would
+        # refresh the wrong row, and an empty folder must not wipe it.
         if self.current_image_path:
             self._maybe_save_before_nav()
+        self._image_dirty = False
 
+        self._invalidate_label_status_cache()
+        self._image_cache.invalidate()
+        self._nav_direction = 1
+        self.image_list = new_list
         self.current_folder_path = folder_path
         self.current_image_index = 0
+        self._refresh_image_list()
         self._load_image(self.image_list[0])
         self._update_nav_label()
-        self._refresh_image_list()
 
     def _mark_dirty(self):
         if not self._image_dirty:
@@ -692,19 +744,50 @@ class MainWindow(QMainWindow):
         if self.image_list:
             self._refresh_image_list_item(self.current_image_index)
 
-    def _has_labeled_txt(self, img_path: Path) -> bool:
-        if not self.save_folder_path:
-            return False
-        txt_path = self.save_folder_path / img_path.with_suffix(".txt").name
-        return txt_path.is_file() and txt_path.stat().st_size > 0
+    def _txt_path_for_image(self, img_path: Path) -> Path:
+        return self.save_folder_path / img_path.with_suffix(".txt").name
 
-    def _format_list_item_text(self, img_path: Path, index: int) -> str:
-        name = img_path.name
+    def _invalidate_label_status_cache(self):
+        self._label_status_cache.clear()
+
+    def _set_label_status(self, img_path: Path, status: str):
+        self._label_status_cache[img_path.name] = status
+
+    def _file_label_status(self, img_path: Path) -> str:
+        if not self.save_folder_path:
+            return STATUS_UNLABELED
+        key = img_path.name
+        cached = self._label_status_cache.get(key)
+        if cached is None:
+            cached = read_label_file_status(self._txt_path_for_image(img_path))
+            self._label_status_cache[key] = cached
+        return cached
+
+    def _has_unsaved_changes(self) -> bool:
+        return annotation_signature(self.label_manager.bboxes) != self._saved_signature
+
+    def _remember_saved_state(self):
+        self._saved_signature = annotation_signature(self.label_manager.bboxes)
+
+    def _display_status(self, img_path: Path, index: int) -> str:
         if index == self.current_image_index and self._image_dirty:
-            return tr("list.modified", name=name)
-        if self._has_labeled_txt(img_path):
-            return tr("list.labeled", name=name)
-        return tr("list.unlabeled", name=name)
+            return "modified"
+        return self._file_label_status(img_path)
+
+    def _status_color(self, status: str) -> QColor:
+        if status == "modified":
+            return QColor("#f59e0b")
+        if status == STATUS_LABELED:
+            return QColor("#22c55e")
+        if status == STATUS_BACKGROUND:
+            return QColor("#38bdf8")
+        return QColor(get_palette()["text_muted"])
+
+    def _apply_list_item_appearance(self, item: QListWidgetItem, img_path: Path, index: int):
+        status = self._display_status(img_path, index)
+        item.setText(tr(f"list.{status}", name=img_path.name))
+        item.setToolTip(tr(f"list.tip_{status}"))
+        item.setForeground(self._status_color(status))
 
     def _refresh_image_list_item(self, index: int):
         if index < 0 or index >= len(self.image_list):
@@ -712,12 +795,14 @@ class MainWindow(QMainWindow):
         item = self.image_list_widget.item(index)
         if item is None:
             return
-        item.setText(self._format_list_item_text(self.image_list[index], index))
+        self._apply_list_item_appearance(item, self.image_list[index], index)
 
     def _refresh_image_list(self):
         self.image_list_widget.clear()
         for i, img_path in enumerate(self.image_list):
-            self.image_list_widget.addItem(self._format_list_item_text(img_path, i))
+            item = QListWidgetItem()
+            self._apply_list_item_appearance(item, img_path, i)
+            self.image_list_widget.addItem(item)
 
     def _load_image(self, image_path: Path):
         self._cancel_polygon_drawing()
@@ -735,24 +820,29 @@ class MainWindow(QMainWindow):
 
         try:
             self.current_image_path = image_path
-            pixmap = load_image(self.current_image_path)
-            self.image_view.load_pixmap(pixmap)
+            pixmap = load_image(self.current_image_path, self._image_cache)
+            # load_pixmap already clears the scene, installs the pixmap,
+            # sets the scene rect, and fits the view. Drop stale Python
+            # wrappers first so selection signals cannot touch deleted items.
+            self.bbox_items = {}
+            self.image_view.scene.blockSignals(True)
+            try:
+                self.image_view.load_pixmap(pixmap)
+            finally:
+                self.image_view.scene.blockSignals(False)
 
             txt_path = self.save_folder_path / image_path.with_suffix(".txt").name
             self.label_manager.bboxes = load_yolo_txt(txt_path)
             self._undo_stack.clear()
-
-            self.image_view.scene.clear()
-            pixmap_item = self.image_view.scene.addPixmap(pixmap)
-            pixmap_item.setZValue(-1)
-            self.bbox_items = {}
 
             img_rect = QRectF(0, 0, pixmap.width(), pixmap.height())
             self._current_img_rect = img_rect
             self._rebuild_scene_from_bboxes()
             self.refresh_bbox_list()
             self._clear_bbox_selection()
+            self._remember_saved_state()
             self._clear_dirty()
+            self._prefetch_around_current()
         except Exception as e:
             QMessageBox.critical(
                 self, tr("msg.error"), tr("msg.load_image_failed", error=str(e))
@@ -770,15 +860,57 @@ class MainWindow(QMainWindow):
         else:
             self.img_counter_label.setText("0/0")
 
+    def _prefetch_around_current(self):
+        paths = neighbor_paths(
+            self.image_list,
+            self.current_image_index,
+            radius=2,
+            direction=self._nav_direction,
+        )
+        self._image_cache.prefetch(paths)
+
     def _maybe_save_before_nav(self):
         if not self._app_settings.auto_save_on_nav:
+            return
+        # Browsing must not create txt files. Deleting every box changes the
+        # signature, so that case still writes an empty file for training.
+        if not self._has_unsaved_changes():
+            if self._image_dirty:
+                self._clear_dirty()
             return
         if not self.save_txt(show_toast=False):
             self._show_toast(tr("toast.auto_save_skipped"))
 
+    def mark_as_background(self):
+        if not self.current_image_path:
+            QMessageBox.information(self, tr("msg.info"), tr("msg.open_image_first"))
+            return
+        if not self.save_folder_path:
+            QMessageBox.warning(self, tr("msg.warning"), tr("msg.set_save_path_first"))
+            return
+        if self.polygon_draw_controller.is_active():
+            self.polygon_draw_controller.cancel()
+
+        if self.label_manager.bboxes:
+            self._push_undo_snapshot()
+            self._clear_all_bboxes()
+
+        if not self.save_txt(show_toast=False):
+            return
+        self._show_toast(tr("toast.marked_background"))
+
+    def _clear_all_bboxes(self):
+        for gfx in list(self.bbox_items.values()):
+            self.image_view.scene.removeItem(gfx)
+        self.bbox_items.clear()
+        self.label_manager.bboxes = []
+        self.refresh_bbox_list()
+        self._clear_bbox_selection()
+
     def on_image_list_row_changed(self, row):
         if row >= 0 and row < len(self.image_list) and row != self.current_image_index:
             self._maybe_save_before_nav()
+            self._nav_direction = 1 if row > self.current_image_index else -1
             self.current_image_index = row
             self._load_image(self.image_list[self.current_image_index])
             self._update_nav_label()
@@ -790,6 +922,7 @@ class MainWindow(QMainWindow):
 
         self._maybe_save_before_nav()
 
+        self._nav_direction = -1
         self.current_image_index = (self.current_image_index - 1) % len(self.image_list)
         self._load_image(self.image_list[self.current_image_index])
         self._update_nav_label()
@@ -801,6 +934,7 @@ class MainWindow(QMainWindow):
 
         self._maybe_save_before_nav()
 
+        self._nav_direction = 1
         self.current_image_index = (self.current_image_index + 1) % len(self.image_list)
         self._load_image(self.image_list[self.current_image_index])
         self._update_nav_label()
@@ -810,8 +944,11 @@ class MainWindow(QMainWindow):
             return False
 
         try:
-            txt_path = self.save_folder_path / self.current_image_path.with_suffix(".txt").name
+            txt_path = self._txt_path_for_image(self.current_image_path)
             save_yolo_txt(txt_path, self.label_manager.bboxes)
+            self._remember_saved_state()
+            status = STATUS_LABELED if self.label_manager.bboxes else STATUS_BACKGROUND
+            self._set_label_status(self.current_image_path, status)
             self._clear_dirty()
             if show_toast:
                 self._show_toast(tr("toast.save_success"))
@@ -823,24 +960,18 @@ class MainWindow(QMainWindow):
             return False
 
     def save_all_in_folder(self, show_toast=False):
+        """Periodic save: write only the image that actually has unsaved edits.
+
+        Other label files in the folder are left untouched, including their
+        formatting. The editor only keeps one image's boxes in memory.
+        """
         if not self.save_folder_path or not self.image_list:
             return
+        if not self.current_image_path or not self._has_unsaved_changes():
+            return
 
-        try:
-            for i, img_path in enumerate(self.image_list):
-                txt_path = self.save_folder_path / img_path.with_suffix(".txt").name
-                if i == self.current_image_index:
-                    bboxes = self.label_manager.bboxes
-                else:
-                    bboxes = load_yolo_txt(txt_path)
-                save_yolo_txt(txt_path, bboxes)
-            self._clear_dirty()
-            if show_toast:
-                self._show_toast(tr("toast.periodic_save_done"))
-        except Exception as e:
-            QMessageBox.warning(
-                self, tr("msg.save_failed"), tr("msg.save_txt_failed", error=str(e))
-            )
+        if self.save_txt(show_toast=False) and show_toast:
+            self._show_toast(tr("toast.periodic_save_done"))
 
     def _show_toast(self, message):
         toast = QLabel(message)
@@ -860,6 +991,10 @@ class MainWindow(QMainWindow):
 
     def fit_image_to_view(self):
         self.image_view.fit_to_view()
+
+    def closeEvent(self, event):
+        self._image_cache.shutdown()
+        super().closeEvent(event)
 
     def refresh_bbox_list(self):
         self.bbox_list.clear()

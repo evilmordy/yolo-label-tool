@@ -76,6 +76,7 @@ class SettingsDialog(QDialog):
 
         shortcut_defs = [
             (ShortcutKey.SAVE, "settings.shortcut_save"),
+            (ShortcutKey.MARK_BACKGROUND, "settings.shortcut_mark_background"),
             (ShortcutKey.UNDO, "settings.shortcut_undo"),
             (ShortcutKey.ADD, "settings.shortcut_add"),
             (ShortcutKey.DELETE, "settings.shortcut_delete"),
