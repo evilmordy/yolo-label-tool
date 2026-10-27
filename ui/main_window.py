@@ -34,6 +34,7 @@ from core.undo_stack import UndoStack
 from core.bbox_clone import clone_bboxes
 from ui.graphics_utils import pick_preferred_bbox_root, resolve_bbox_root
 from utils.image_loader import ImageCache, load_image, neighbor_paths
+from utils.natural_sort import natural_sorted
 from ui.theme_manager import (
     apply_theme, get_theme_ids, get_theme_name, get_current_theme_id, get_palette,
 )
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
         self._saved_signature = annotation_signature([])
         self._nav_direction = 1
         self._image_cache = ImageCache(parent=self)
+        self._label_status_cache = {}
 
         self._create_left_panel()
         self._create_right_panel()
@@ -655,6 +657,9 @@ class MainWindow(QMainWindow):
             self.save_folder_path = Path(folder)
             save_path_pref(KEY_SAVE_FOLDER, folder)
             self._update_save_path_label()
+            self._invalidate_label_status_cache()
+            if self.image_list:
+                self._refresh_image_list()
 
     def open_image(self):
         if not self.save_folder_path:
@@ -675,6 +680,7 @@ class MainWindow(QMainWindow):
             self._maybe_save_before_nav()
 
         self._image_cache.invalidate()
+        self._invalidate_label_status_cache()
         self._nav_direction = 1
         self.current_image_path = Path(path)
         save_path_pref(KEY_LAST_IMAGE_DIR, str(self.current_image_path.parent))
@@ -698,28 +704,34 @@ class MainWindow(QMainWindow):
         if not folder:
             return
 
-        folder_path = Path(folder)
         save_path_pref(KEY_LAST_FOLDER, folder)
+        self._open_folder_path(Path(folder))
+
+    def _open_folder_path(self, folder_path: Path):
         image_exts = {".jpg", ".jpeg", ".png", ".bmp"}
-        self.image_list = sorted([
+        new_list = natural_sorted([
             f for f in folder_path.iterdir()
             if f.suffix.lower() in image_exts
         ])
-
-        if not self.image_list:
+        if not new_list:
             QMessageBox.warning(self, tr("msg.warning"), tr("msg.no_images_in_folder"))
             return
 
+        # Save against the previous list. Replacing image_list first would
+        # refresh the wrong row, and an empty folder must not wipe it.
         if self.current_image_path:
             self._maybe_save_before_nav()
+        self._image_dirty = False
 
+        self._invalidate_label_status_cache()
         self._image_cache.invalidate()
         self._nav_direction = 1
+        self.image_list = new_list
         self.current_folder_path = folder_path
         self.current_image_index = 0
+        self._refresh_image_list()
         self._load_image(self.image_list[0])
         self._update_nav_label()
-        self._refresh_image_list()
 
     def _mark_dirty(self):
         if not self._image_dirty:
@@ -735,10 +747,21 @@ class MainWindow(QMainWindow):
     def _txt_path_for_image(self, img_path: Path) -> Path:
         return self.save_folder_path / img_path.with_suffix(".txt").name
 
+    def _invalidate_label_status_cache(self):
+        self._label_status_cache.clear()
+
+    def _set_label_status(self, img_path: Path, status: str):
+        self._label_status_cache[img_path.name] = status
+
     def _file_label_status(self, img_path: Path) -> str:
         if not self.save_folder_path:
             return STATUS_UNLABELED
-        return read_label_file_status(self._txt_path_for_image(img_path))
+        key = img_path.name
+        cached = self._label_status_cache.get(key)
+        if cached is None:
+            cached = read_label_file_status(self._txt_path_for_image(img_path))
+            self._label_status_cache[key] = cached
+        return cached
 
     def _has_unsaved_changes(self) -> bool:
         return annotation_signature(self.label_manager.bboxes) != self._saved_signature
@@ -924,6 +947,8 @@ class MainWindow(QMainWindow):
             txt_path = self._txt_path_for_image(self.current_image_path)
             save_yolo_txt(txt_path, self.label_manager.bboxes)
             self._remember_saved_state()
+            status = STATUS_LABELED if self.label_manager.bboxes else STATUS_BACKGROUND
+            self._set_label_status(self.current_image_path, status)
             self._clear_dirty()
             if show_toast:
                 self._show_toast(tr("toast.save_success"))

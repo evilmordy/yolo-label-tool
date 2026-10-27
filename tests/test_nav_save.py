@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -295,6 +296,72 @@ class NavSaveTests(unittest.TestCase):
             1,
         )
         self.assertAlmostEqual(self.window.label_manager.bboxes[0].width, 0.25)
+
+    def test_label_status_cache_skips_repeat_stats(self):
+        labeled = self._png("labeled.png")
+        background = self._png("background.png")
+        unlabeled = self._png("plain.png")
+        self._txt(labeled).write_text("0 0.500000 0.500000 0.200000 0.200000\n", encoding="utf-8")
+        self._txt(background).write_text("", encoding="utf-8")
+        with patch(
+            "ui.main_window.read_label_file_status",
+            wraps=read_label_file_status,
+        ) as mocked:
+            self._open([labeled, background, unlabeled])
+            warmed = mocked.call_count
+            self.assertGreaterEqual(warmed, 3)
+            self.window._refresh_image_list()
+            self.window.retranslate_ui()
+            self.assertEqual(mocked.call_count, warmed)
+            self.window.mark_as_background()
+            self._txt(labeled).unlink()
+            self.assertEqual(self.window._file_label_status(labeled), STATUS_BACKGROUND)
+            self.assertEqual(mocked.call_count, warmed)
+
+    def test_open_folder_saves_previous_list_and_uses_natural_order(self):
+        old_a = self._png("old_a.png", Qt.red)
+        old_b = self._png("old_b.png", Qt.blue)
+        self._open([old_a, old_b], index=1)
+        self.window.add_bbox()
+
+        new_folder = self.folder / "new_images"
+        empty = self.folder / "empty_images"
+        new_folder.mkdir()
+        empty.mkdir()
+        for name, color in (
+            ("img10.png", Qt.red),
+            ("img2.png", Qt.blue),
+            ("img1.png", Qt.green),
+        ):
+            _write_png(new_folder / name, color)
+
+        with patch("ui.main_window.QMessageBox.warning"):
+            self.window._open_folder_path(empty)
+        self.assertEqual(
+            [path.name for path in self.window.image_list],
+            ["old_a.png", "old_b.png"],
+        )
+        self.assertEqual(self.window.current_image_path, old_b)
+        self.assertFalse(self._txt(old_b).exists())
+
+        logged = []
+        original = self.window._refresh_image_list_item
+
+        def spy(index):
+            if 0 <= index < len(self.window.image_list):
+                logged.append(self.window.image_list[index].name)
+            return original(index)
+
+        self.window._refresh_image_list_item = spy
+        self.window._open_folder_path(new_folder)
+        self.assertEqual(logged[0], "old_b.png")
+        self.assertEqual(
+            [path.name for path in self.window.image_list],
+            ["img1.png", "img2.png", "img10.png"],
+        )
+        self.assertGreater(self._txt(old_b).stat().st_size, 0)
+        self.assertEqual(self.window.image_list_widget.count(), 3)
+        self.assertTrue(self.window.image_list_widget.item(0).text().endswith("img1.png"))
 
     def test_shortcut_marks_background(self):
         image = self._png("a.png")
