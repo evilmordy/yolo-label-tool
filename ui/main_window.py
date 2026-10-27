@@ -33,7 +33,7 @@ from core.settings_manager import (
 from core.undo_stack import UndoStack
 from core.bbox_clone import clone_bboxes
 from ui.graphics_utils import pick_preferred_bbox_root, resolve_bbox_root
-from utils.image_loader import load_image
+from utils.image_loader import ImageCache, load_image, neighbor_paths
 from ui.theme_manager import (
     apply_theme, get_theme_ids, get_theme_name, get_current_theme_id, get_palette,
 )
@@ -73,6 +73,8 @@ class MainWindow(QMainWindow):
         self._undo_stack = UndoStack()
         self._image_dirty = False
         self._saved_signature = annotation_signature([])
+        self._nav_direction = 1
+        self._image_cache = ImageCache(parent=self)
 
         self._create_left_panel()
         self._create_right_panel()
@@ -672,6 +674,8 @@ class MainWindow(QMainWindow):
         if self.current_image_path:
             self._maybe_save_before_nav()
 
+        self._image_cache.invalidate()
+        self._nav_direction = 1
         self.current_image_path = Path(path)
         save_path_pref(KEY_LAST_IMAGE_DIR, str(self.current_image_path.parent))
         self.current_folder_path = None
@@ -709,6 +713,8 @@ class MainWindow(QMainWindow):
         if self.current_image_path:
             self._maybe_save_before_nav()
 
+        self._image_cache.invalidate()
+        self._nav_direction = 1
         self.current_folder_path = folder_path
         self.current_image_index = 0
         self._load_image(self.image_list[0])
@@ -791,7 +797,7 @@ class MainWindow(QMainWindow):
 
         try:
             self.current_image_path = image_path
-            pixmap = load_image(self.current_image_path)
+            pixmap = load_image(self.current_image_path, self._image_cache)
             self.image_view.load_pixmap(pixmap)
 
             txt_path = self.save_folder_path / image_path.with_suffix(".txt").name
@@ -810,6 +816,7 @@ class MainWindow(QMainWindow):
             self._clear_bbox_selection()
             self._remember_saved_state()
             self._clear_dirty()
+            self._prefetch_around_current()
         except Exception as e:
             QMessageBox.critical(
                 self, tr("msg.error"), tr("msg.load_image_failed", error=str(e))
@@ -826,6 +833,15 @@ class MainWindow(QMainWindow):
             self._refresh_image_list_item(self.current_image_index)
         else:
             self.img_counter_label.setText("0/0")
+
+    def _prefetch_around_current(self):
+        paths = neighbor_paths(
+            self.image_list,
+            self.current_image_index,
+            radius=2,
+            direction=self._nav_direction,
+        )
+        self._image_cache.prefetch(paths)
 
     def _maybe_save_before_nav(self):
         if not self._app_settings.auto_save_on_nav:
@@ -868,6 +884,7 @@ class MainWindow(QMainWindow):
     def on_image_list_row_changed(self, row):
         if row >= 0 and row < len(self.image_list) and row != self.current_image_index:
             self._maybe_save_before_nav()
+            self._nav_direction = 1 if row > self.current_image_index else -1
             self.current_image_index = row
             self._load_image(self.image_list[self.current_image_index])
             self._update_nav_label()
@@ -879,6 +896,7 @@ class MainWindow(QMainWindow):
 
         self._maybe_save_before_nav()
 
+        self._nav_direction = -1
         self.current_image_index = (self.current_image_index - 1) % len(self.image_list)
         self._load_image(self.image_list[self.current_image_index])
         self._update_nav_label()
@@ -890,6 +908,7 @@ class MainWindow(QMainWindow):
 
         self._maybe_save_before_nav()
 
+        self._nav_direction = 1
         self.current_image_index = (self.current_image_index + 1) % len(self.image_list)
         self._load_image(self.image_list[self.current_image_index])
         self._update_nav_label()
@@ -944,6 +963,10 @@ class MainWindow(QMainWindow):
 
     def fit_image_to_view(self):
         self.image_view.fit_to_view()
+
+    def closeEvent(self, event):
+        self._image_cache.shutdown()
+        super().closeEvent(event)
 
     def refresh_bbox_list(self):
         self.bbox_list.clear()
