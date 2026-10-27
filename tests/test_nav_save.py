@@ -217,6 +217,31 @@ class NavSaveTests(unittest.TestCase):
         self.assertTrue(body.startswith("0 "))
         self.assertNotEqual(body, "")
 
+    def test_save_all_writes_only_unsaved_image(self):
+        current = self._png("current.png")
+        other = self._png("other.png")
+        untouched = "0 0.123456789 0.2 0.3 0.4 extra\nnot a label\n"
+        other_txt = self._txt(other)
+        other_txt.write_text(untouched, encoding="utf-8")
+        self._open([current, other])
+        before = other_txt.read_bytes()
+        self.window.save_all_in_folder(show_toast=True)
+        self.assertEqual(other_txt.read_bytes(), before)
+        self.assertFalse(self._txt(current).exists())
+
+        self.window.add_bbox()
+        self.window.save_all_in_folder(show_toast=True)
+        self.assertTrue(self._txt(current).is_file())
+        self.assertGreater(self._txt(current).stat().st_size, 0)
+        self.assertEqual(other_txt.read_bytes(), before)
+
+        rewritten = other_txt.read_bytes()
+        self.window.save_all_in_folder(show_toast=True)
+        self.assertEqual(other_txt.read_bytes(), rewritten)
+        current_bytes = self._txt(current).read_bytes()
+        self.window.save_all_in_folder(show_toast=True)
+        self.assertEqual(self._txt(current).read_bytes(), current_bytes)
+
     def test_shortcut_marks_background(self):
         image = self._png("a.png")
         self._open([image])

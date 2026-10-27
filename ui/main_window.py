@@ -913,24 +913,18 @@ class MainWindow(QMainWindow):
             return False
 
     def save_all_in_folder(self, show_toast=False):
+        """Periodic save: write only the image that actually has unsaved edits.
+
+        Other label files in the folder are left untouched, including their
+        formatting. The editor only keeps one image's boxes in memory.
+        """
         if not self.save_folder_path or not self.image_list:
             return
+        if not self.current_image_path or not self._has_unsaved_changes():
+            return
 
-        try:
-            for i, img_path in enumerate(self.image_list):
-                txt_path = self.save_folder_path / img_path.with_suffix(".txt").name
-                if i == self.current_image_index:
-                    bboxes = self.label_manager.bboxes
-                else:
-                    bboxes = load_yolo_txt(txt_path)
-                save_yolo_txt(txt_path, bboxes)
-            self._clear_dirty()
-            if show_toast:
-                self._show_toast(tr("toast.periodic_save_done"))
-        except Exception as e:
-            QMessageBox.warning(
-                self, tr("msg.save_failed"), tr("msg.save_txt_failed", error=str(e))
-            )
+        if self.save_txt(show_toast=False) and show_toast:
+            self._show_toast(tr("toast.periodic_save_done"))
 
     def _show_toast(self, message):
         toast = QLabel(message)
