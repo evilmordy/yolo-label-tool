@@ -31,6 +31,7 @@ class ShortcutKey(str, Enum):
     POLYGON_FINISH = "shortcut_polygon_finish"
     POLYGON_CANCEL = "shortcut_polygon_cancel"
     SAVE = "shortcut_save"
+    MARK_BACKGROUND = "shortcut_mark_background"
     UNDO = "shortcut_undo"
     ADD = "shortcut_add"
     DELETE = "shortcut_delete"
@@ -45,6 +46,7 @@ DEFAULT_SHORTCUTS = {
     ShortcutKey.POLYGON_FINISH: "Return",
     ShortcutKey.POLYGON_CANCEL: "Escape",
     ShortcutKey.SAVE: "Ctrl+S",
+    ShortcutKey.MARK_BACKGROUND: "B",
     ShortcutKey.UNDO: "Ctrl+Z",
     ShortcutKey.ADD: "A",
     ShortcutKey.DELETE: "Delete",

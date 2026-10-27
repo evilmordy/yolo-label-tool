@@ -1,6 +1,43 @@
 from pathlib import Path
 from core.bbox import BBox
 
+STATUS_UNLABELED = "unlabeled"
+STATUS_BACKGROUND = "background"
+STATUS_LABELED = "labeled"
+
+
+def read_label_file_status(txt_path: Path) -> str:
+    """labeled = non-empty txt, background = empty txt, unlabeled = no txt."""
+    try:
+        if not txt_path.is_file():
+            return STATUS_UNLABELED
+        if txt_path.stat().st_size > 0:
+            return STATUS_LABELED
+    except OSError:
+        return STATUS_UNLABELED
+    return STATUS_BACKGROUND
+
+
+def annotation_signature(bboxes) -> tuple:
+    """Immutable snapshot of annotation content, ignoring bbox ids."""
+    rows = []
+    for bbox in bboxes:
+        if bbox.type == "rect":
+            rows.append((
+                "rect",
+                int(bbox.class_id),
+                float(bbox.x_center),
+                float(bbox.y_center),
+                float(bbox.width),
+                float(bbox.height),
+            ))
+        else:
+            points = tuple(
+                (float(px), float(py)) for px, py in (bbox.points or [])
+            )
+            rows.append((bbox.type, int(bbox.class_id), points))
+    return tuple(rows)
+
 
 def _is_polygon_row(num_parts: int) -> bool:
     return num_parts >= 7 and (num_parts - 1) % 2 == 0 and num_parts != 9
