@@ -6,6 +6,7 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -262,6 +263,8 @@ jobs:
           path: YOLOTxtMaker-mac.zip
 
   release:
+    # PR 只验证三平台能打出包，不发 Release。
+    if: github.event_name != 'pull_request'
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
