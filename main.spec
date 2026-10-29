@@ -2,13 +2,19 @@
 
 import sys
 
+sys.path.insert(0, SPECPATH)
+
+from appimage.linux_qt_libs import qt_platform_binaries
+
 block_cipher = None
 
+# Windows / macOS：空列表，不改这两边的打包结果。
+qt_binaries = qt_platform_binaries()
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=qt_binaries,
     datas=[('resources/style.qss', 'resources')],
     hiddenimports=[],
     hookspath=[],

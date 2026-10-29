@@ -1,9 +1,14 @@
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from PyQt5.QtCore import QSettings
 
 THEME_IDS = ("light_blue", "light_pink", "deep_blue")
-DEFAULT_THEME = "deep_blue"
+# 没保存过、系统也没要求深色时用浅色。Hub 的测试机就是这种情况。
+DEFAULT_THEME = "light_blue"
+DARK_THEME = "deep_blue"
 SETTINGS_KEY = "theme"
 
 THEMES = {
@@ -118,17 +123,113 @@ def get_palette(theme_id=None):
     return THEMES[theme_id]
 
 
+def _config_home() -> Path:
+    raw = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return Path(raw)
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def _gsettings(key: str):
+    try:
+        proc = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", key],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip().strip("'\"")
+
+
+def system_prefers_dark() -> bool:
+    """True only when the desktop asked for dark. Unset stays light."""
+    for env_key in ("GTK_THEME", "QT_STYLE_OVERRIDE"):
+        if "dark" in os.environ.get(env_key, "").lower():
+            return True
+
+    for raw in _read_text(_config_home() / "gtk-3.0" / "settings.ini").splitlines():
+        line = raw.split("#", 1)[0].strip().lower().replace(" ", "")
+        if line in (
+            "gtk-application-prefer-dark-theme=1",
+            "gtk-application-prefer-dark-theme=true",
+        ):
+            return True
+        if line.startswith("gtk-theme-name=") and "dark" in line:
+            return True
+
+    for raw in _read_text(_config_home() / "kdeglobals").splitlines():
+        line = raw.strip().lower().replace(" ", "")
+        if line.startswith("colorscheme=") and "dark" in line:
+            return True
+
+    if sys.platform == "win32":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            if int(value) == 0:
+                return True
+        except (OSError, ValueError):
+            pass
+    elif sys.platform == "darwin":
+        try:
+            proc = subprocess.run(
+                ["defaults", "read", "-g", "AppleInterfaceStyle"],
+                capture_output=True,
+                text=True,
+                timeout=1,
+                check=False,
+            )
+            if proc.stdout.strip().lower() == "dark":
+                return True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    scheme = _gsettings("color-scheme")
+    if scheme == "prefer-dark":
+        return True
+    if scheme == "prefer-light":
+        return False
+    theme_name = _gsettings("gtk-theme")
+    return bool(theme_name) and "dark" in theme_name.lower()
+
+
+def default_theme_id() -> str:
+    return DARK_THEME if system_prefers_dark() else DEFAULT_THEME
+
+
 def load_saved_theme_id():
+    """The theme the user picked, or None when Settings has no choice yet."""
     settings = QSettings("YOLOTxtMaker", "YOLOTxtMaker")
-    theme_id = str(settings.value(SETTINGS_KEY, DEFAULT_THEME))
+    if not settings.contains(SETTINGS_KEY):
+        return None
+    theme_id = settings.value(SETTINGS_KEY)
+    if theme_id is None:
+        return None
+    theme_id = str(theme_id)
     if theme_id not in THEMES:
-        theme_id = DEFAULT_THEME
+        return None
     return theme_id
 
 
 def init_saved_theme():
     global _current_theme_id
-    _current_theme_id = load_saved_theme_id()
+    saved = load_saved_theme_id()
+    _current_theme_id = saved if saved else default_theme_id()
     return _current_theme_id
 
 
@@ -154,13 +255,15 @@ def get_annotation_colors(theme_id=None):
     }
 
 
-def apply_theme(app, window, theme_id):
+def apply_theme(app, window, theme_id, persist=True):
     global _current_theme_id
     if theme_id not in THEMES:
-        theme_id = DEFAULT_THEME
+        theme_id = default_theme_id()
 
     _current_theme_id = theme_id
-    save_theme_id(theme_id)
+    # 启动时 persist=False：没手动选过就不写配置，下次仍跟着系统。
+    if persist:
+        save_theme_id(theme_id)
 
     app.setStyleSheet(build_stylesheet(theme_id))
 

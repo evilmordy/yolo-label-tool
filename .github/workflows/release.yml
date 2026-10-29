@@ -6,6 +6,7 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -62,17 +63,40 @@ jobs:
           sudo apt-get update
           # 22.04 没有 libfuse2t64。原先写在同一条 apt 里并用 || 回退时，
           # 找不到这个包会让整次安装失败，Qt/ImageMagick 也不会装上。
+          # libqxcb.so 直接链接这些 xcb-util / xkbcommon。只在 runner 上 apt
+          # 不够：Hub 的 firejail 里没有它们，必须打进 AppImage。这里安装是为了
+          # 让打包脚本能把 SONAME 拷进去，并在 Xvfb 里做启动检查。
           sudo apt-get install -y \
             libgl1 \
             libglib2.0-0 \
+            libxkbcommon0 \
             libxkbcommon-x11-0 \
             libdbus-1-3 \
             libxcb-cursor0 \
+            libxcb-glx0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-shm0 \
+            libxcb-sync1 \
+            libxcb-util1 \
+            libxcb-xfixes0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
             libx11-xcb1 \
             libegl1 \
             imagemagick \
             libfuse2 \
-            binutils
+            binutils \
+            xvfb \
+            x11-utils \
+            x11-apps \
+            appstream \
+            desktop-file-utils
 
       - name: Install dependencies and build
         run: |
@@ -171,6 +195,8 @@ jobs:
             '[Desktop Entry]' \
             'Type=Application' \
             'Name=YOLOTxtMaker' \
+            'GenericName=YOLO label tool' \
+            'Comment=Create and edit YOLO annotation files' \
             'Exec=YOLOTxtMaker' \
             'Icon=YOLOTxtMaker' \
             'Categories=Graphics;' \
@@ -179,12 +205,24 @@ jobs:
 
           cp AppDir/YOLOTxtMaker.desktop AppDir/usr/share/applications/
 
+          # Hub 的 appdir-lint 只认 usr/share/metainfo 里的 *appdata.xml，
+          # 不认 *.metainfo.xml。文件名用 .appdata.xml，组件 id 仍是反向域名。
+          mkdir -p AppDir/usr/share/metainfo
+          cp appimage/com.evilmordy.yolotxtmaker.appdata.xml AppDir/usr/share/metainfo/
+
           convert -size 256x256 xc:'#0ea5e9' AppDir/YOLOTxtMaker.png
           cp AppDir/YOLOTxtMaker.png AppDir/usr/share/icons/hicolor/256x256/apps/
+          cp AppDir/YOLOTxtMaker.png AppDir/.DirIcon
+
+          desktop-file-validate AppDir/YOLOTxtMaker.desktop
+          appstreamcli validate-tree --no-net AppDir
 
           export APPIMAGE_EXTRACT_AND_RUN=1
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir YOLOTxtMaker.AppImage
           test -f YOLOTxtMaker.AppImage
+
+      - name: Smoke test AppImage
+        run: bash appimage/smoke_appimage.sh "$PWD/YOLOTxtMaker.AppImage"
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -225,6 +263,8 @@ jobs:
           path: YOLOTxtMaker-mac.zip
 
   release:
+    # PR 只验证三平台能打出包，不发 Release。
+    if: github.event_name != 'pull_request'
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:

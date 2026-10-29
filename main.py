@@ -41,7 +41,7 @@ def main():
     saved_theme = init_saved_theme()
     window = MainWindow()
     window.setWindowTitle(tr("app.title"))
-    apply_theme(app, window, saved_theme)
+    apply_theme(app, window, saved_theme, persist=False)
     
     # 获取屏幕大小，设置合理的初始窗口大小
     screen = app.primaryScreen()
