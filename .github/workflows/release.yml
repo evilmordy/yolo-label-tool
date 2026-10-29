@@ -43,7 +43,11 @@ jobs:
           path: dist/YOLOTxtMaker.exe
 
   build-linux:
-    runs-on: ubuntu-latest
+    # AppImageHub 在 ubuntu-22.04（glibc 2.35）上测试。setup-python 会装
+    # 「与 runner 系统对应」的 CPython；ubuntu-latest 目前是 24.04，打进去的
+    # libpython 需要 GLIBC_2.38，程序在弹出窗口前就退出。不能改成在更新的
+    # runner 里套 ubuntu:22.04 容器：选包看的是宿主 runner，不是容器。
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,6 +60,8 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
+          # 22.04 没有 libfuse2t64。原先写在同一条 apt 里并用 || 回退时，
+          # 找不到这个包会让整次安装失败，Qt/ImageMagick 也不会装上。
           sudo apt-get install -y \
             libgl1 \
             libglib2.0-0 \
@@ -65,7 +71,8 @@ jobs:
             libx11-xcb1 \
             libegl1 \
             imagemagick \
-            libfuse2t64 || sudo apt-get install -y libfuse2
+            libfuse2 \
+            binutils
 
       - name: Install dependencies and build
         run: |
@@ -78,6 +85,76 @@ jobs:
           ls -la dist/
           test -f dist/YOLOTxtMaker
 
+      - name: Verify glibc <= 2.35
+        run: |
+          python - <<'PY'
+          import re
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          from PyInstaller.archive.readers import CArchiveReader
+
+          MAX = (2, 35)
+          pat = re.compile(r"GLIBC_(\d+)\.(\d+)")
+          binary = Path(sys.argv[1] if len(sys.argv) > 1 else "dist/YOLOTxtMaker")
+
+          def glibc_versions(path: Path):
+              out = subprocess.run(
+                  ["objdump", "-T", str(path)],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              ).stdout
+              return {(int(a), int(b)) for a, b in pat.findall(out)}
+
+          def main():
+              if not binary.is_file():
+                  sys.exit(f"missing {binary}")
+              offenders = []
+              worst = (0, 0)
+              saw_libpython = False
+
+              def consider(label, versions):
+                  nonlocal worst
+                  if versions and max(versions) > worst:
+                      worst = max(versions)
+                  too_new = [v for v in versions if v > MAX]
+                  if too_new:
+                      offenders.append((label, max(too_new)))
+
+              consider(binary.name, glibc_versions(binary))
+              reader = CArchiveReader(str(binary))
+              with tempfile.TemporaryDirectory() as tmp:
+                  dest = Path(tmp) / "obj"
+                  for name, entry in reader.toc.items():
+                      if entry[-1] != "b":
+                          continue
+                      data = reader.extract(name)
+                      if not data.startswith(b"\x7fELF"):
+                          continue
+                      if "libpython" in name:
+                          saw_libpython = True
+                      dest.write_bytes(data)
+                      consider(name, glibc_versions(dest))
+
+              print(f"Highest GLIBC required: {worst[0]}.{worst[1]}")
+              if not saw_libpython:
+                  sys.exit("libpython was not found in the PyInstaller archive")
+              if worst == (0, 0):
+                  sys.exit("no GLIBC versions found; objdump scan failed")
+              if offenders:
+                  print("GLIBC newer than 2.35 (Ubuntu 22.04) found:")
+                  for name, ver in offenders:
+                      print(f"  GLIBC_{ver[0]}.{ver[1]}  {name}")
+                  sys.exit(1)
+              print("OK: bundled ELF files need GLIBC <= 2.35")
+
+          if __name__ == "__main__":
+              main()
+          PY
+
       - name: Build AppImage
         run: |
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
@@ -87,6 +164,8 @@ jobs:
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp dist/YOLOTxtMaker AppDir/usr/bin/YOLOTxtMaker
           ln -s usr/bin/YOLOTxtMaker AppDir/AppRun
+          test -L AppDir/AppRun
+          test "$(readlink AppDir/AppRun)" = usr/bin/YOLOTxtMaker
 
           printf '%s\n' \
             '[Desktop Entry]' \
