@@ -1,4 +1,6 @@
-# YOLO 标注工具 (YOLOTxtMaker)
+# YOLO Label Tool (YOLOTxtMaker)
+
+YOLO 标注工具。仓库名 `yolo-label-tool`、下载文件名 `YOLOTxtMaker` 和这个标题是同一个程序。
 
 一个功能完整的YOLO数据集标注工具，提供直观的GUI界面用于创建和编辑YOLO格式的标注文件。
 
@@ -15,6 +17,8 @@
 chmod +x YOLOTxtMaker.AppImage
 ./YOLOTxtMaker.AppImage
 ```
+
+同一个 Release 里的 `YOLOTxtMaker.AppImage.zsync` 给 AppImageUpdate 做增量更新。
 
 ### macOS
 在 Release 页面下载 `YOLOTxtMaker-mac.zip`，解压后运行其中的 `YOLOTxtMaker.app`。

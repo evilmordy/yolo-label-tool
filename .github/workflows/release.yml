@@ -96,7 +96,8 @@ jobs:
             x11-utils \
             x11-apps \
             appstream \
-            desktop-file-utils
+            desktop-file-utils \
+            zsync
 
       - name: Install dependencies and build
         run: |
@@ -191,12 +192,15 @@ jobs:
           test -L AppDir/AppRun
           test "$(readlink AppDir/AppRun)" = usr/bin/YOLOTxtMaker
 
+          # Name 用窗口标题里的 YOLO Label Tool：Hub 的 data/ 文件名
+          # yolo-label-tool 去掉大小写和标点后与它对得上。Exec、图标、
+          # 下载文件名仍是 YOLOTxtMaker，避免改掉已有的 Release 链接。
           printf '%s\n' \
             '[Desktop Entry]' \
             'Type=Application' \
-            'Name=YOLOTxtMaker' \
-            'GenericName=YOLO label tool' \
-            'Comment=Create and edit YOLO annotation files' \
+            'Name=YOLO Label Tool' \
+            'GenericName=YOLOTxtMaker' \
+            'Comment=YOLOTxtMaker: create and edit YOLO annotation files' \
             'Exec=YOLOTxtMaker' \
             'Icon=YOLOTxtMaker' \
             'Categories=Graphics;' \
@@ -217,9 +221,22 @@ jobs:
           desktop-file-validate AppDir/YOLOTxtMaker.desktop
           appstreamcli validate-tree --no-net AppDir
 
+          # 嵌入 AppImageUpdate 读的更新信息，并在旁边生成 .zsync。
+          # 没有 zsyncmake 时 appimagetool 仍会成功退出，所以下面必须自己检查。
+          # gh-releases-zsync|<owner>|<repo>|latest|YOLOTxtMaker.AppImage.zsync
+          # AppImageUpdate 查 GitHub releases/latest，下载这个 zsync。
+          # zsync 里的文件名是 YOLOTxtMaker.AppImage，和 zsync 在同一条 Release 地址下。
+          command -v zsyncmake >/dev/null
+          repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required to embed update information}"
+          update_info="gh-releases-zsync|${repo%%/*}|${repo#*/}|latest|YOLOTxtMaker.AppImage.zsync"
+          echo "Update information: ${update_info}"
           export APPIMAGE_EXTRACT_AND_RUN=1
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir YOLOTxtMaker.AppImage
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run -u "$update_info" AppDir YOLOTxtMaker.AppImage
           test -f YOLOTxtMaker.AppImage
+          test -s YOLOTxtMaker.AppImage.zsync
+          # APPIMAGE_EXTRACT_AND_RUN 会让 runtime 直接跑程序，读不到 .upd_info。
+          embedded=$(env -u APPIMAGE_EXTRACT_AND_RUN ./YOLOTxtMaker.AppImage --appimage-updateinformation | tr -d '\000' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+          test "$embedded" = "$update_info"
 
       - name: Smoke test AppImage
         run: bash appimage/smoke_appimage.sh "$PWD/YOLOTxtMaker.AppImage"
@@ -228,7 +245,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: YOLOTxtMaker.AppImage
+          path: |
+            YOLOTxtMaker.AppImage
+            YOLOTxtMaker.AppImage.zsync
 
   build-macos:
     runs-on: macos-latest
@@ -325,4 +344,5 @@ jobs:
           files: |
             artifacts/YOLOTxtMaker.exe
             artifacts/YOLOTxtMaker.AppImage
+            artifacts/YOLOTxtMaker.AppImage.zsync
             artifacts/YOLOTxtMaker-mac.zip

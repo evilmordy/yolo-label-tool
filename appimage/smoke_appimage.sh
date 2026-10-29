@@ -16,6 +16,25 @@ if [[ ! -f "$APPIMAGE" ]]; then
   exit 1
 fi
 
+# Hub 用 runtime --appimage-updateinformation 读 ELF .upd_info，不启动界面。
+# 下载文件名保持 YOLOTxtMaker.AppImage，zsync 必须放在它旁边。
+# APPIMAGE_EXTRACT_AND_RUN 会让 runtime 直接跑程序，所以这里先关掉。
+UPDATE_INFO=$(env -u APPIMAGE_EXTRACT_AND_RUN "$APPIMAGE" --appimage-updateinformation 2>/dev/null | tr -d '\000' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' || true)
+if [[ ! "$UPDATE_INFO" =~ ^gh-releases-zsync\|[^|]+\|[^|]+\|latest\|YOLOTxtMaker\.AppImage\.zsync$ ]]; then
+  echo "AppImage update information is missing or unexpected: ${UPDATE_INFO:-<empty>}" >&2
+  exit 1
+fi
+echo "Update information: $UPDATE_INFO"
+ZSYNC="${APPIMAGE}.zsync"
+if [[ ! -s "$ZSYNC" ]]; then
+  echo "Missing zsync next to the AppImage: $ZSYNC" >&2
+  exit 1
+fi
+if ! grep -a -q 'Filename: YOLOTxtMaker.AppImage' "$ZSYNC"; then
+  echo "zsync file does not name YOLOTxtMaker.AppImage" >&2
+  exit 1
+fi
+
 if [[ "${SMOKE_INNER:-}" != 1 ]]; then
   export SMOKE_INNER=1
   exec xvfb-run -a -s "-screen 0 1280x800x24" bash "$SCRIPT" "$APPIMAGE"
