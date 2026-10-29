@@ -1,12 +1,12 @@
-# YOLOTxtMaker
+# YOLO Label Tool (YOLOTxtMaker)
 
-YOLOTxtMaker is a desktop tool for drawing YOLO labels: axis-aligned boxes, oriented boxes, and polygons. The git repository is named `yolo-label-tool`. Releases ship as `YOLOTxtMaker` (Windows `.exe`, Linux `.AppImage`, macOS `.app`).
+YOLO Label Tool (download name `YOLOTxtMaker`; git repository `yolo-label-tool`) is a desktop tool for drawing YOLO labels: axis-aligned boxes, oriented boxes, and polygons. Releases ship as `YOLOTxtMaker` (Windows `.exe`, Linux `.AppImage`, macOS `.app`).
 
 Labels are written into the save folder you pick. On first launch, or if that folder is gone, choose **Set Save Path** before opening an image or a folder. The choice is remembered.
 
 ## Install
 
-- **Linux:** download `YOLOTxtMaker.AppImage` from the [releases](https://github.com/evilmordy/yolo-label-tool/releases), then `chmod +x YOLOTxtMaker.AppImage` and run it.
+- **Linux:** download `YOLOTxtMaker.AppImage` from the [releases](https://github.com/evilmordy/yolo-label-tool/releases), then `chmod +x YOLOTxtMaker.AppImage` and run it. The same release includes `YOLOTxtMaker.AppImage.zsync` for AppImageUpdate.
 - **Windows:** download `YOLOTxtMaker.exe` and run it.
 - **macOS:** download `YOLOTxtMaker-mac.zip`, unzip, and open `YOLOTxtMaker.app`.
 
