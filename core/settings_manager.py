@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from PyQt5.QtCore import QSettings, Qt
+from PyQt5.QtCore import QLocale, QSettings, Qt
 from PyQt5.QtGui import QKeySequence
 
 ORG = "YOLOTxtMaker"
@@ -83,9 +83,9 @@ def load_all() -> AppSettings:
         val = s.value(key.value, shortcuts[key.value])
         shortcuts[key.value] = str(val) if val else shortcuts[key.value]
 
-    lang = str(s.value(KEY_LANGUAGE, DEFAULT_LANGUAGE))
+    lang = str(s.value(KEY_LANGUAGE, ""))
     if lang not in VALID_LANGUAGES:
-        lang = DEFAULT_LANGUAGE
+        lang = system_language()
 
     try:
         interval = int(s.value(KEY_PERIODIC_INTERVAL_MIN, DEFAULT_PERIODIC_INTERVAL_MIN))
@@ -115,6 +115,19 @@ def _to_bool(value, default: bool) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).lower() in ("true", "1", "yes")
+
+
+def system_language() -> str:
+    """Pick the UI language from the OS locale (LANGUAGE/LC_*/LANG on Linux).
+
+    Chinese and Japanese locales get their own UI; everything else falls
+    back to English. A language chosen in Settings always wins over this.
+    """
+    for name in QLocale.system().uiLanguages():
+        code = name.replace("_", "-").split("-")[0].lower()
+        if code in VALID_LANGUAGES:
+            return code
+    return "en"
 
 
 def load_language() -> str:

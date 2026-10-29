@@ -86,6 +86,7 @@ jobs:
 
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp dist/YOLOTxtMaker AppDir/usr/bin/YOLOTxtMaker
+          ln -s usr/bin/YOLOTxtMaker AppDir/AppRun
 
           printf '%s\n' \
             '[Desktop Entry]' \
